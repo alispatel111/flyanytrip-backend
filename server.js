@@ -20,7 +20,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://localhost:3001',
-  'https://flyanytrip-e73b.vercel.app',
+  'https://flyanytrip-frontend.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
@@ -29,15 +29,18 @@ app.use((req, res, next) => {
   const origin = req.headers.origin;
   
   // Check if origin is allowed
+  // 1. Exact match in allowedOrigins
+  // 2. Localhost match (for any port)
+  // 3. Vercel preview match
   const isAllowed = !origin || 
                     allowedOrigins.includes(origin) || 
-                    allowedOrigins.includes(origin + '/') || 
+                    origin.startsWith('http://localhost:') || 
                     origin.endsWith('.vercel.app');
 
   if (isAllowed) {
     res.setHeader('Access-Control-Allow-Origin', origin || '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
 
@@ -49,10 +52,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Keep the standard CORS middleware as a fallback for specific route needs
+// Keep the standard CORS middleware as a fallback
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+    if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.endsWith('.vercel.app')) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
