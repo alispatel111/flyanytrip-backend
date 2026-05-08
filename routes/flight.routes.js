@@ -8,5 +8,7 @@ const { flightSearchLimiter } = require('../middlewares/rateLimiter');
 router.get('/search', flightSearchLimiter, flightController.searchFlights);
 router.get('/locations', flightController.searchLocations);
 router.get('/calendar-fare', flightController.getCalendarFare);
+router.post('/fare-rule', flightController.getFareRule);
+router.post('/fare-quote', flightController.getFareQuote);
 
 module.exports = router;

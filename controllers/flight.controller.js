@@ -99,8 +99,60 @@ const getCalendarFare = async (req, res, next) => {
   }
 };
 
+const getFareRule = async (req, res, next) => {
+  try {
+    const { traceId, resultIndex } = req.body;
+    if (!traceId || !resultIndex) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required parameters: traceId or resultIndex',
+      });
+    }
+
+    const cacheKey = generateCacheKey('fare_rule', { traceId, resultIndex });
+    const cached = apiCache.get(cacheKey);
+    if (cached) {
+      return res.status(200).json({ success: true, source: 'cache', data: cached });
+    }
+
+    const rules = await adivahaService.getFareRule({ TraceId: traceId, ResultIndex: resultIndex });
+    apiCache.set(cacheKey, rules);
+
+    return res.status(200).json({ success: true, source: 'api', data: rules });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getFareQuote = async (req, res, next) => {
+  try {
+    const { traceId, resultIndex } = req.body;
+    if (!traceId || !resultIndex) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required parameters: traceId or resultIndex',
+      });
+    }
+
+    const cacheKey = generateCacheKey('fare_quote', { traceId, resultIndex });
+    const cached = apiCache.get(cacheKey);
+    if (cached) {
+      return res.status(200).json({ success: true, source: 'cache', data: cached });
+    }
+
+    const quote = await adivahaService.getFlightFareQuote({ TraceId: traceId, ResultIndex: resultIndex });
+    apiCache.set(cacheKey, quote);
+
+    return res.status(200).json({ success: true, source: 'api', data: quote });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   searchFlights,
   searchLocations,
   getCalendarFare,
+  getFareRule,
+  getFareQuote,
 };

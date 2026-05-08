@@ -91,6 +91,10 @@ class AdivahaFlightService {
                          response.data?.Response?.Results || 
                          response.data?.Results;
 
+      const traceId = response.data?.responseData?.Response?.TraceId || 
+                      response.data?.Response?.TraceId || 
+                      response.data?.TraceId;
+
       if (resultsArray && resultsArray.length > 0) {
         // Adivaha often nests results: [[flight1, flight2, ...]]
         // We flatten it if necessary
@@ -170,6 +174,8 @@ class AdivahaFlightService {
 
           return {
             id: f.ResultIndex || `adivaha_${index}`,
+            traceId: traceId,
+            resultIndex: f.ResultIndex,
             type: 'flight',
             airline: firstSegment.Airline?.AirlineName || 'Airlines',
             airlineCode: firstSegment.Airline?.AirlineCode,
@@ -198,9 +204,36 @@ class AdivahaFlightService {
     }
   }
 
-  // TODO: Implement Flight Fare Quote (POST)
-  static async getFlightFareQuote(quotePayload) {
-    // Implement Flight Fare Quote endpoint
+  static async getFareRule(payload) {
+    try {
+      const { TraceId, ResultIndex } = payload;
+      const apiPayload = {
+        action: "fareRule",
+        ResultIndex,
+        TraceId
+      };
+      const response = await adivahaClient.post('/', apiPayload);
+      return response.data;
+    } catch (error) {
+      console.error('Adivaha getFareRule Error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  static async getFlightFareQuote(payload) {
+    try {
+      const { TraceId, ResultIndex } = payload;
+      const apiPayload = {
+        action: "fareQuote",
+        ResultIndex,
+        TraceId
+      };
+      const response = await adivahaClient.post('/', apiPayload);
+      return response.data;
+    } catch (error) {
+      console.error('Adivaha getFlightFareQuote Error:', error.response?.data || error.message);
+      throw error;
+    }
   }
 
   /**
