@@ -5,6 +5,9 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 
 const flightRoutes = require('./routes/flight.routes');
+const bookingRoutes = require('./routes/booking.routes');
+const paymentRoutes = require('./routes/payment.routes');
+const couponRoutes = require('./routes/coupon.routes');
 
 const app = express();
 
@@ -72,6 +75,9 @@ app.use('/api/health', (req, res) => {
 });
 
 app.use('/api/flights', flightRoutes);
+app.use('/api/booking', bookingRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/coupons', couponRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

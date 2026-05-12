@@ -101,7 +101,7 @@ const getCalendarFare = async (req, res, next) => {
 
 const getFareRule = async (req, res, next) => {
   try {
-    const { traceId, resultIndex } = req.body;
+    const { traceId, resultIndex, tokenId } = req.body;
     if (!traceId || !resultIndex) {
       return res.status(400).json({
         success: false,
@@ -109,13 +109,20 @@ const getFareRule = async (req, res, next) => {
       });
     }
 
-    const cacheKey = generateCacheKey('fare_rule', { traceId, resultIndex });
+    const endUserIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+
+    const cacheKey = generateCacheKey('fare_rule', { traceId, resultIndex, tokenId });
     const cached = apiCache.get(cacheKey);
     if (cached) {
       return res.status(200).json({ success: true, source: 'cache', data: cached });
     }
 
-    const rules = await adivahaService.getFareRule({ TraceId: traceId, ResultIndex: resultIndex });
+    const rules = await adivahaService.getFareRule({ 
+      TraceId: traceId, 
+      ResultIndex: resultIndex,
+      TokenId: tokenId,
+      EndUserIp: endUserIp
+    });
     apiCache.set(cacheKey, rules);
 
     return res.status(200).json({ success: true, source: 'api', data: rules });
@@ -126,7 +133,7 @@ const getFareRule = async (req, res, next) => {
 
 const getFareQuote = async (req, res, next) => {
   try {
-    const { traceId, resultIndex } = req.body;
+    const { traceId, resultIndex, tokenId } = req.body;
     if (!traceId || !resultIndex) {
       return res.status(400).json({
         success: false,
@@ -134,16 +141,55 @@ const getFareQuote = async (req, res, next) => {
       });
     }
 
-    const cacheKey = generateCacheKey('fare_quote', { traceId, resultIndex });
+    const endUserIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+
+    const cacheKey = generateCacheKey('fare_quote', { traceId, resultIndex, tokenId });
     const cached = apiCache.get(cacheKey);
     if (cached) {
       return res.status(200).json({ success: true, source: 'cache', data: cached });
     }
 
-    const quote = await adivahaService.getFlightFareQuote({ TraceId: traceId, ResultIndex: resultIndex });
+    const quote = await adivahaService.getFlightFareQuote({ 
+      TraceId: traceId, 
+      ResultIndex: resultIndex,
+      TokenId: tokenId,
+      EndUserIp: endUserIp
+    });
     apiCache.set(cacheKey, quote);
 
     return res.status(200).json({ success: true, source: 'api', data: quote });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getFlightSSR = async (req, res, next) => {
+  try {
+    const { traceId, resultIndex, tokenId } = req.body;
+    if (!traceId || !resultIndex) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required parameters: traceId or resultIndex',
+      });
+    }
+
+    const endUserIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+
+    const cacheKey = generateCacheKey('flight_ssr', { traceId, resultIndex, tokenId });
+    const cached = apiCache.get(cacheKey);
+    if (cached) {
+      return res.status(200).json({ success: true, source: 'cache', data: cached });
+    }
+
+    const ssr = await adivahaService.getFlightSSR({ 
+      TraceId: traceId, 
+      ResultIndex: resultIndex,
+      TokenId: tokenId,
+      EndUserIp: endUserIp
+    });
+    apiCache.set(cacheKey, ssr);
+
+    return res.status(200).json({ success: true, source: 'api', data: ssr });
   } catch (error) {
     next(error);
   }
@@ -155,4 +201,5 @@ module.exports = {
   getCalendarFare,
   getFareRule,
   getFareQuote,
+  getFlightSSR,
 };

@@ -10,5 +10,6 @@ router.get('/locations', flightController.searchLocations);
 router.get('/calendar-fare', flightController.getCalendarFare);
 router.post('/fare-rule', flightController.getFareRule);
 router.post('/fare-quote', flightController.getFareQuote);
+router.post('/ssr', flightController.getFlightSSR);
 
 module.exports = router;

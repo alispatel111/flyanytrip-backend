@@ -95,6 +95,10 @@ class AdivahaFlightService {
                       response.data?.Response?.TraceId || 
                       response.data?.TraceId;
 
+      const tokenId = response.data?.responseData?.Response?.TokenId || 
+                      response.data?.Response?.TokenId || 
+                      response.data?.TokenId;
+
       if (resultsArray && resultsArray.length > 0) {
         // Adivaha often nests results: [[flight1, flight2, ...]]
         // We flatten it if necessary
@@ -103,22 +107,17 @@ class AdivahaFlightService {
         }
 
         const mappedFlights = resultsArray.map((f, index) => {
-          // A flight might have multiple segments, we take the first one for basic display
+          // ... (rest of mapping logic)
+          // (Keeping lines 106-174 same)
           const firstSegment = f.Segments?.[0]?.[0];
-          // We take the last segment for arrival info
           const lastSegment = f.Segments?.[0]?.[f.Segments[0].length - 1]; 
-          
           if (!firstSegment) return null;
-
-          // Format time helper (from "2026-05-01T10:00:00" to "10:00 AM")
           const formatTime = (dateStr) => {
             if (!dateStr) return '';
             const d = new Date(dateStr);
             if (isNaN(d.getTime())) return '';
             return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           };
-
-          // Format duration helper (minutes to Xh Ym)
           const formatDuration = (mins) => {
             if (!mins || isNaN(mins)) return '0m';
             const h = Math.floor(mins / 60);
@@ -127,13 +126,10 @@ class AdivahaFlightService {
             if (h > 0) return `${h}h`;
             return `${m}m`;
           };
-
           const segments = f.Segments?.[0] || [];
           const numStops = segments.length > 0 ? segments.length - 1 : 0;
-          
           let totalDurationMins = 0;
           let layoverStr = "";
-
           if (segments.length === 1) {
              totalDurationMins = segments[0].AccumulatedDuration || segments[0].Duration || 0;
           } else if (segments.length > 1) {
@@ -152,7 +148,6 @@ class AdivahaFlightService {
                       if (layoverMins < 0) layoverMins = 0;
                    }
                    calculatedTotal += layoverMins;
-                   
                    const layoverCity = currentSeg.Destination.Airport?.CityName || currentSeg.Destination.Airport?.AirportCode || 'Unknown';
                    if (layoverMins > 0) {
                       layoverDetails.push(`${layoverCity} (${formatDuration(layoverMins)})`);
@@ -161,10 +156,7 @@ class AdivahaFlightService {
                    }
                 }
              }
-             
-             // Use AccumulatedDuration if available on the last segment, otherwise use calculated total
              totalDurationMins = lastSegment?.AccumulatedDuration || calculatedTotal;
-             
              if (numStops === 1) {
                 layoverStr = `1 Stop at ${layoverDetails[0]}`;
              } else {
@@ -175,6 +167,7 @@ class AdivahaFlightService {
           return {
             id: f.ResultIndex || `adivaha_${index}`,
             traceId: traceId,
+            tokenId: tokenId,
             resultIndex: f.ResultIndex,
             type: 'flight',
             airline: firstSegment.Airline?.AirlineName || 'Airlines',
@@ -206,11 +199,13 @@ class AdivahaFlightService {
 
   static async getFareRule(payload) {
     try {
-      const { TraceId, ResultIndex } = payload;
+      const { TraceId, ResultIndex, TokenId, EndUserIp } = payload;
       const apiPayload = {
         action: "fareRule",
         ResultIndex,
-        TraceId
+        TraceId,
+        TokenId,
+        EndUserIp
       };
       const response = await adivahaClient.post('/', apiPayload);
       return response.data;
@@ -222,11 +217,13 @@ class AdivahaFlightService {
 
   static async getFlightFareQuote(payload) {
     try {
-      const { TraceId, ResultIndex } = payload;
+      const { TraceId, ResultIndex, TokenId, EndUserIp } = payload;
       const apiPayload = {
         action: "fareQuote",
         ResultIndex,
-        TraceId
+        TraceId,
+        TokenId,
+        EndUserIp
       };
       const response = await adivahaClient.post('/', apiPayload);
       return response.data;
@@ -278,9 +275,57 @@ class AdivahaFlightService {
     }
   }
 
-  // TODO: Implement LCC/Non-LCC Flight Book (POST)
+  /**
+   * Book a flight (LCC or Non-LCC)
+   * POST https://api.adivaha.io/flights/api/
+   * @param {Object} bookingPayload - Data for booking
+   */
   static async bookFlight(bookingPayload) {
-    // Implement Booking endpoint
+    try {
+      const { 
+        isLCC, 
+        TraceId, 
+        ResultIndex, 
+        Passengers, 
+        ContactDetails 
+      } = bookingPayload;
+
+      const apiPayload = {
+        action: isLCC ? "ticket" : "book",
+        TraceId,
+        ResultIndex,
+        Passengers,
+        ContactDetails
+      };
+
+      const response = await adivahaClient.post('/', apiPayload);
+      return response.data;
+    } catch (error) {
+      console.error(`Adivaha ${bookingPayload.isLCC ? 'Ticket' : 'Book'} Error:`, error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Special Service Requests (SSR) like meals, seats, and baggage
+   * POST https://api.adivaha.io/flights/api/?action=flightSSR
+   */
+  static async getFlightSSR(payload) {
+    try {
+      const { TraceId, ResultIndex, TokenId, EndUserIp } = payload;
+      const apiPayload = {
+        action: "flightSSR",
+        ResultIndex,
+        TraceId,
+        TokenId,
+        EndUserIp
+      };
+      const response = await adivahaClient.post('/', apiPayload);
+      return response.data;
+    } catch (error) {
+      console.error('Adivaha getFlightSSR Error:', error.response?.data || error.message);
+      throw error;
+    }
   }
 }
 
