@@ -83,21 +83,21 @@ class AdivahaFlightService {
       };
 
       const response = await adivahaClient.post('/', payload);
-      
+
       // We normalize the adivaha flights data format to the one expected by our frontend ResultsSection
       // The frontend expects: { id, type: 'flight', airline, flight, from, to, time, arrival, dur, price, class }
-      
-      let resultsArray = response.data?.responseData?.Response?.Results || 
-                         response.data?.Response?.Results || 
-                         response.data?.Results;
 
-      const traceId = response.data?.responseData?.Response?.TraceId || 
-                      response.data?.Response?.TraceId || 
-                      response.data?.TraceId;
+      let resultsArray = response.data?.responseData?.Response?.Results ||
+        response.data?.Response?.Results ||
+        response.data?.Results;
 
-      const tokenId = response.data?.responseData?.Response?.TokenId || 
-                      response.data?.Response?.TokenId || 
-                      response.data?.TokenId;
+      const traceId = response.data?.responseData?.Response?.TraceId ||
+        response.data?.Response?.TraceId ||
+        response.data?.TraceId;
+
+      const tokenId = response.data?.responseData?.Response?.TokenId ||
+        response.data?.Response?.TokenId ||
+        response.data?.TokenId;
 
       if (resultsArray && resultsArray.length > 0) {
         // Adivaha often nests results: [[flight1, flight2, ...]]
@@ -110,7 +110,7 @@ class AdivahaFlightService {
           // ... (rest of mapping logic)
           // (Keeping lines 106-174 same)
           const firstSegment = f.Segments?.[0]?.[0];
-          const lastSegment = f.Segments?.[0]?.[f.Segments[0].length - 1]; 
+          const lastSegment = f.Segments?.[0]?.[f.Segments[0].length - 1];
           if (!firstSegment) return null;
           const formatTime = (dateStr) => {
             if (!dateStr) return '';
@@ -131,37 +131,37 @@ class AdivahaFlightService {
           let totalDurationMins = 0;
           let layoverStr = "";
           if (segments.length === 1) {
-             totalDurationMins = segments[0].AccumulatedDuration || segments[0].Duration || 0;
+            totalDurationMins = segments[0].AccumulatedDuration || segments[0].Duration || 0;
           } else if (segments.length > 1) {
-             let calculatedTotal = 0;
-             let layoverDetails = [];
-             for (let i = 0; i < segments.length; i++) {
-                calculatedTotal += (segments[i].Duration || 0);
-                if (i < segments.length - 1) {
-                   const currentSeg = segments[i];
-                   const nextSeg = segments[i+1];
-                   const arrTime = new Date(currentSeg.Destination.ArrTime);
-                   const depTime = new Date(nextSeg.Origin.DepTime);
-                   let layoverMins = 0;
-                   if (!isNaN(arrTime.getTime()) && !isNaN(depTime.getTime())) {
-                      layoverMins = Math.floor((depTime - arrTime) / (1000 * 60));
-                      if (layoverMins < 0) layoverMins = 0;
-                   }
-                   calculatedTotal += layoverMins;
-                   const layoverCity = currentSeg.Destination.Airport?.CityName || currentSeg.Destination.Airport?.AirportCode || 'Unknown';
-                   if (layoverMins > 0) {
-                      layoverDetails.push(`${layoverCity} (${formatDuration(layoverMins)})`);
-                   } else {
-                      layoverDetails.push(`${layoverCity}`);
-                   }
+            let calculatedTotal = 0;
+            let layoverDetails = [];
+            for (let i = 0; i < segments.length; i++) {
+              calculatedTotal += (segments[i].Duration || 0);
+              if (i < segments.length - 1) {
+                const currentSeg = segments[i];
+                const nextSeg = segments[i + 1];
+                const arrTime = new Date(currentSeg.Destination.ArrTime);
+                const depTime = new Date(nextSeg.Origin.DepTime);
+                let layoverMins = 0;
+                if (!isNaN(arrTime.getTime()) && !isNaN(depTime.getTime())) {
+                  layoverMins = Math.floor((depTime - arrTime) / (1000 * 60));
+                  if (layoverMins < 0) layoverMins = 0;
                 }
-             }
-             totalDurationMins = lastSegment?.AccumulatedDuration || calculatedTotal;
-             if (numStops === 1) {
-                layoverStr = `1 Stop at ${layoverDetails[0]}`;
-             } else {
-                layoverStr = `${numStops} Stops at ${layoverDetails.join(', ')}`;
-             }
+                calculatedTotal += layoverMins;
+                const layoverCity = currentSeg.Destination.Airport?.CityName || currentSeg.Destination.Airport?.AirportCode || 'Unknown';
+                if (layoverMins > 0) {
+                  layoverDetails.push(`${layoverCity} (${formatDuration(layoverMins)})`);
+                } else {
+                  layoverDetails.push(`${layoverCity}`);
+                }
+              }
+            }
+            totalDurationMins = lastSegment?.AccumulatedDuration || calculatedTotal;
+            if (numStops === 1) {
+              layoverStr = `1 Stop at ${layoverDetails[0]}`;
+            } else {
+              layoverStr = `${numStops} Stops at ${layoverDetails.join(', ')}`;
+            }
           }
 
           return {
@@ -193,6 +193,156 @@ class AdivahaFlightService {
       return { flights: [], rawAdivahaResponse: response.data };
     } catch (error) {
       console.error('Adivaha searchFlights Error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  static async multicityFlightSearch(searchPayload) {
+    try {
+      const {
+        adults = 1,
+        children = 0,
+        infants = 0,
+        segments = []
+      } = searchPayload;
+
+      const formatDate = (dateStr) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        return d.toISOString().split('T')[0];
+      };
+
+      const categoryMap = {
+        'Economy': 3,
+        'Premium Economy': 4,
+        'Business': 5,
+        'First Class': 6
+      };
+
+      const mappedSegments = segments.map(seg => ({
+        Origin: seg.from,
+        Destination: seg.to,
+        FlightCabinClass: categoryMap[seg.travelClass || 'Economy'] || 3,
+        PreferredDepartureTime: formatDate(seg.departureDate),
+        PreferredArrivalTime: formatDate(seg.departureDate)
+      }));
+
+      const payload = {
+        action: "multicityflightSearch",
+        adults: Number(adults),
+        children: Number(children),
+        infants: Number(infants),
+        Segments: mappedSegments
+      };
+
+      const response = await adivahaClient.post('/?action=multicityflightSearch', payload);
+
+      const errorObj = response.data?.responseData?.Response?.Error || response.data?.Response?.Error;
+      if (errorObj && errorObj.ErrorMessage) {
+        throw new Error(`Adivaha API Error: ${errorObj.ErrorMessage}`);
+      }
+
+      let resultsArray = response.data?.responseData?.Response?.Results ||
+        response.data?.Response?.Results ||
+        response.data?.Results;
+
+      const traceId = response.data?.responseData?.Response?.TraceId ||
+        response.data?.Response?.TraceId ||
+        response.data?.TraceId;
+
+      const tokenId = response.data?.responseData?.Response?.TokenId ||
+        response.data?.Response?.TokenId ||
+        response.data?.TokenId;
+
+      if (resultsArray && resultsArray.length > 0) {
+        if (Array.isArray(resultsArray[0])) {
+          resultsArray = resultsArray[0];
+        }
+
+        const mappedFlights = resultsArray.map((f, index) => {
+          let segmentsArray = f.Segments;
+          if (!segmentsArray || segmentsArray.length === 0) return null;
+
+          // Normalize to 1D array for easy access to first and last segment
+          let allSegments = [];
+          let is2D = Array.isArray(segmentsArray[0]);
+          if (is2D) {
+            segmentsArray.forEach(leg => allSegments.push(...leg));
+          } else {
+            allSegments = segmentsArray;
+          }
+
+          if (allSegments.length === 0) return null;
+
+          const firstSeg = allSegments[0];
+          const lastSeg = allSegments[allSegments.length - 1];
+
+          const formatTime = (dateStr) => {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return '';
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          };
+
+          const formatDuration = (mins) => {
+            if (!mins || isNaN(mins)) return '0m';
+            const h = Math.floor(mins / 60);
+            const m = Math.floor(mins % 60);
+            if (h > 0 && m > 0) return `${h}h ${m}m`;
+            if (h > 0) return `${h}h`;
+            return `${m}m`;
+          };
+
+          let totalDurationMins = 0;
+          let numStops = 0;
+          let numLegs = 0;
+
+          if (is2D) {
+            numLegs = segmentsArray.length;
+            segmentsArray.forEach((leg) => {
+              numStops += (leg.length > 1 ? leg.length - 1 : 0);
+              leg.forEach((seg) => {
+                totalDurationMins += (seg.Duration || 0);
+              });
+            });
+          } else {
+            numLegs = segmentsArray.length;
+            segmentsArray.forEach((seg) => {
+              totalDurationMins += (seg.Duration || 0);
+            });
+            // If it's a 1D array in multicity, each segment is likely a direct leg
+            numStops = 0;
+          }
+
+          return {
+            id: f.ResultIndex || `adivaha_multi_${index}`,
+            traceId: traceId,
+            tokenId: tokenId,
+            resultIndex: f.ResultIndex,
+            type: 'flight',
+            airline: firstSeg.Airline?.AirlineName || 'Airlines',
+            airlineCode: firstSeg.Airline?.AirlineCode,
+            flight: `${firstSeg.Airline?.AirlineCode}-${firstSeg.Airline?.FlightNumber}`,
+            from: mappedSegments[0]?.Origin,
+            to: mappedSegments[mappedSegments.length - 1]?.Destination,
+            time: formatTime(firstSeg.Origin?.DepTime),
+            arrival: formatTime(lastSeg.Destination?.ArrTime),
+            dur: formatDuration(totalDurationMins),
+            stops: numStops,
+            layover: `Multi-City (${numLegs} Legs)`,
+            price: Math.ceil(f.Fare?.OfferedFare || f.Fare?.PublishedFare || 0).toLocaleString('en-IN'),
+            publishedPrice: Math.ceil(f.Fare?.PublishedFare || 0).toLocaleString('en-IN'),
+            class: firstSeg.FareClassification?.Type || 'Economy',
+            raw: f
+          };
+        }).filter(Boolean);
+
+        return { flights: mappedFlights, rawAdivahaResponse: response.data };
+      }
+
+      return { flights: [], rawAdivahaResponse: response.data };
+    } catch (error) {
+      console.error('Adivaha multicityFlightSearch Error:', error.response?.data || error.message);
       throw error;
     }
   }
@@ -282,12 +432,12 @@ class AdivahaFlightService {
    */
   static async bookFlight(bookingPayload) {
     try {
-      const { 
-        isLCC, 
-        TraceId, 
-        ResultIndex, 
-        Passengers, 
-        ContactDetails 
+      const {
+        isLCC,
+        TraceId,
+        ResultIndex,
+        Passengers,
+        ContactDetails
       } = bookingPayload;
 
       const apiPayload = {

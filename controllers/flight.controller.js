@@ -42,6 +42,43 @@ const searchFlights = async (req, res, next) => {
   }
 };
 
+const searchMultiCityFlights = async (req, res, next) => {
+  try {
+    const searchParams = req.body; 
+    
+    if (!searchParams.segments || searchParams.segments.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing or insufficient segments for multi-city search',
+      });
+    }
+
+    const cacheKey = generateCacheKey('flight_search_multicity', searchParams);
+
+    const cachedResult = apiCache.get(cacheKey);
+    if (cachedResult) {
+      return res.status(200).json({
+        success: true,
+        source: 'cache',
+        data: cachedResult,
+      });
+    }
+
+    const searchResults = await adivahaService.multicityFlightSearch(searchParams);
+
+    apiCache.set(cacheKey, searchResults.flights);
+
+    return res.status(200).json({
+      success: true,
+      source: 'api',
+      data: { flights: searchResults.flights },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 const searchLocations = async (req, res, next) => {
   try {
     const { term } = req.query;
@@ -197,6 +234,7 @@ const getFlightSSR = async (req, res, next) => {
 
 module.exports = {
   searchFlights,
+  searchMultiCityFlights,
   searchLocations,
   getCalendarFare,
   getFareRule,
