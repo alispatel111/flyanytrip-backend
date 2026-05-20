@@ -8,7 +8,7 @@ const shortid = require('shortid');
  */
 const revalidateBooking = async (req, res, next) => {
   try {
-    const { traceId, resultIndex, tokenId } = req.body;
+    const { traceId, resultIndex } = req.body;
     
     if (!traceId || !resultIndex) {
       return res.status(400).json({ success: false, message: 'Missing traceId or resultIndex' });
@@ -19,7 +19,6 @@ const revalidateBooking = async (req, res, next) => {
     const quote = await adivahaService.getFlightFareQuote({ 
       TraceId: traceId, 
       ResultIndex: resultIndex,
-      TokenId: tokenId,
       EndUserIp: endUserIp
     });
 

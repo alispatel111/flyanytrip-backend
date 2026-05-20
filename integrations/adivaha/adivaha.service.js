@@ -19,6 +19,49 @@ const adivahaClient = axios.create({
   }
 });
 
+// Interceptor to handle Adivaha internal Token Management
+adivahaClient.interceptors.response.use(
+  async (response) => {
+    const errorObj = response.data?.responseData?.Response?.Error || 
+                     response.data?.Response?.Error || 
+                     response.data?.Error;
+
+    // ErrorCode 6 means 'Invalid Token'
+    if (errorObj && errorObj.ErrorCode === 6) {
+      const originalRequest = response.config;
+      
+      if (!originalRequest._retry) {
+        originalRequest._retry = true;
+        
+        try {
+          console.log('Adivaha Token Invalid (ErrorCode 6). Generating fresh token...');
+          // Call createToken to refresh the internal token state at Adivaha
+          await axios.get(`${ADIVAHA_BASE_URL}/?action=createToken`, {
+            headers: {
+              'Accept': 'application/json',
+              'Accept-Encoding': 'gzip',
+              'PID': PID,
+              'x-api-key': API_KEY
+            }
+          });
+          
+          console.log('Token refreshed successfully. Retrying original request...');
+          // Retry the original request
+          return adivahaClient(originalRequest);
+        } catch (refreshError) {
+          console.error('Failed to refresh Adivaha token:', refreshError.message);
+          return Promise.reject(refreshError);
+        }
+      }
+    }
+
+    return response;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 class AdivahaFlightService {
   /**
    * Search for flight locations (Airports/Cities)
@@ -349,12 +392,11 @@ class AdivahaFlightService {
 
   static async getFareRule(payload) {
     try {
-      const { TraceId, ResultIndex, TokenId, EndUserIp } = payload;
+      const { TraceId, ResultIndex, EndUserIp } = payload;
       const apiPayload = {
         action: "fareRule",
         ResultIndex,
         TraceId,
-        TokenId,
         EndUserIp
       };
       const response = await adivahaClient.post('/', apiPayload);
@@ -367,12 +409,11 @@ class AdivahaFlightService {
 
   static async getFlightFareQuote(payload) {
     try {
-      const { TraceId, ResultIndex, TokenId, EndUserIp } = payload;
+      const { TraceId, ResultIndex, EndUserIp } = payload;
       const apiPayload = {
         action: "fareQuote",
         ResultIndex,
         TraceId,
-        TokenId,
         EndUserIp
       };
       const response = await adivahaClient.post('/', apiPayload);
@@ -462,12 +503,11 @@ class AdivahaFlightService {
    */
   static async getFlightSSR(payload) {
     try {
-      const { TraceId, ResultIndex, TokenId, EndUserIp } = payload;
+      const { TraceId, ResultIndex, EndUserIp } = payload;
       const apiPayload = {
         action: "flightSSR",
         ResultIndex,
         TraceId,
-        TokenId,
         EndUserIp
       };
       const response = await adivahaClient.post('/', apiPayload);

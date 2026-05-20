@@ -1,0 +1,114 @@
+{
+  "status": "200",
+  "status_message": "OK",
+  "responseData": {
+    "Response": {
+      "ResponseStatus": 1,
+      "Error": {
+        "ErrorCode": 0,
+        "ErrorMessage": ""
+      },
+      "TraceId": "0664ad78-bdd1-42a6-9e20-561e68b6e8a5",
+      "OrderId": "610b986b67fea",
+      "BookingId": 1697020,
+      "PNR": "MH7XKL",
+      "TicketStatus": "Ticketed",
+      "IsLCC": true,
+      "FlightItinerary": {
+        "PNR": "MH7XKL",
+        "BookingId": 1697020,
+        "TicketStatus": "Ticketed",
+        "ValidatingAirline": "6E",
+        "Passenger": [
+          {
+            "Title": "MR",
+            "FirstName": "ALISHA",
+            "LastName": "PATEL",
+            "PaxType": 1,
+            "Gender": 1,
+            "DateOfBirth": "1995-05-12T00:00:00",
+            "Ticket": {
+              "TicketId": 1567415,
+              "TicketNumber": "6E-FAT1567415",
+              "IssueDate": "2026-05-20T16:32:13",
+              "Status": "OK"
+            }
+          },
+          {
+            "Title": "MS",
+            "FirstName": "SNEHA",
+            "LastName": "PATEL",
+            "PaxType": 1,
+            "Gender": 2,
+            "DateOfBirth": "1997-08-24T00:00:00",
+            "Ticket": {
+              "TicketId": 1567416,
+              "TicketNumber": "6E-FAT1567416",
+              "IssueDate": "2026-05-20T16:32:13",
+              "Status": "OK"
+            }
+          }
+        ],
+        "Segments": [
+          [
+            {
+              "Baggage": "15 Kilograms",
+              "CabinBaggage": "7 KG",
+              "CabinClass": 2,
+              "SupplierFareClass": "Saver (Regular)",
+              "TripIndicator": 1,
+              "SegmentIndicator": 1,
+              "Airline": {
+                "AirlineCode": "6E",
+                "AirlineName": "Indigo",
+                "FlightNumber": "1120",
+                "FareClass": "RR",
+                "OperatingCarrier": ""
+              },
+              "Origin": {
+                "Airport": {
+                  "AirportCode": "DEL",
+                  "AirportName": "Indira Gandhi Airport",
+                  "Terminal": "1",
+                  "CityCode": "DEL",
+                  "CityName": "Delhi",
+                  "CountryCode": "IN",
+                  "CountryName": "India"
+                },
+                "DepTime": "2026-06-01T10:00:00"
+              },
+              "Destination": {
+                "Airport": {
+                  "AirportCode": "BOM",
+                  "AirportName": "Chhatrapati Shivaji Airport",
+                  "Terminal": "2",
+                  "CityCode": "BOM",
+                  "CityName": "Mumbai",
+                  "CountryCode": "IN",
+                  "CountryName": "India"
+                },
+                "ArrTime": "2026-06-01T12:15:00"
+              },
+              "Duration": 135,
+              "Craft": "320",
+              "FlightStatus": "Confirmed",
+              "Status": "OK"
+            }
+          ]
+        ]
+      },
+      "Fare": {
+        "Currency": "INR",
+        "BaseFare": 5800,
+        "Tax": 1200,
+        "PublishedFare": 7000,
+        "OfferedFare": 6800,
+        "CommissionEarned": 200,
+        "PLBEarned": 0,
+        "IncentiveEarned": 0,
+        "TdsOnCommission": 10,
+        "ServiceFee": 0
+      }
+    }
+  }
+}
