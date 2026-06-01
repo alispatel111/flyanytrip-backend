@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model bookings {
+  id              Int              @id @default(autoincrement())
+  booking_id      String           @unique @db.VarChar(50)
+  user_id         Int?
+  booking_type    String           @db.VarChar(20)
+  status          String?          @default("PENDING") @db.VarChar(50)
+  total_amount    Decimal?         @db.Decimal(10, 2)
+  currency        String?          @default("INR") @db.VarChar(3)
+  created_at      DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at      DateTime?        @default(now()) @db.Timestamp(6)
+  users           users?           @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  flight_bookings flight_bookings?
+
+  @@index([status], map: "idx_bookings_status")
+  @@index([booking_type], map: "idx_bookings_type")
+  @@index([user_id], map: "idx_bookings_user_id")
+}
+
+model co_travellers {
+  id                       Int       @id @default(autoincrement())
+  user_id                  Int
+  title                    String?   @db.VarChar(10)
+  first_name               String?   @db.VarChar(100)
+  middle_name              String?   @db.VarChar(100)
+  last_name                String?   @db.VarChar(100)
+  gender                   String?   @db.VarChar(20)
+  date_of_birth            DateTime? @db.Date
+  nationality              String?   @db.VarChar(100)
+  relationship             String?   @db.VarChar(50)
+  meal_preference          String?   @db.VarChar(100)
+  train_berth_preference   String?   @db.VarChar(100)
+  passport_number          String?   @db.VarChar(50)
+  passport_expiry_date     DateTime? @db.Date
+  passport_issuing_country String?   @db.VarChar(100)
+  mobile_number            String?   @db.VarChar(20)
+  email                    String?   @db.VarChar(255)
+  frequent_flyer_airline   String?   @db.VarChar(50)
+  frequent_flyer_number    String?   @db.VarChar(100)
+  is_primary               Boolean?  @default(false)
+  is_active                Boolean?  @default(true)
+  total_bookings           Int?      @default(0)
+  notes                    String?
+  created_at               DateTime? @default(now()) @db.Timestamp(6)
+  updated_at               DateTime? @default(now()) @db.Timestamp(6)
+  users                    users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([first_name, last_name], map: "idx_co_travellers_name")
+  @@index([passport_number], map: "idx_co_travellers_passport")
+  @@index([user_id], map: "idx_co_travellers_user")
+}
+
+model flight_bookings {
+  id                  Int       @id(map: "flight_bookings_pkey1") @default(autoincrement())
+  booking_id          String    @unique(map: "flight_bookings_booking_id_key1") @db.VarChar(50)
+  user_id             Int?
+  provider_booking_id BigInt
+  provider_order_id   String    @db.VarChar(100)
+  trace_id            String?   @db.VarChar(255)
+  pnr                 String?   @db.VarChar(20)
+  validating_airline  String?   @db.VarChar(10)
+  origin_airport      String?   @db.VarChar(10)
+  destination_airport String?   @db.VarChar(10)
+  departure_date      DateTime? @db.Date
+  total_fare          Decimal?  @db.Decimal(10, 2)
+  offered_fare        Decimal?  @db.Decimal(10, 2)
+  currency            String?   @default("INR") @db.VarChar(10)
+  ticket_status       String?   @db.VarChar(50)
+  booking_status      String?   @default("CONFIRMED") @db.VarChar(50)
+  is_lcc              Boolean?  @default(false)
+  total_passengers    Int?      @default(1)
+  distance_km         Int?      @default(0)
+  raw_response        Json?
+  created_at          DateTime? @default(now()) @db.Timestamp(6)
+  updated_at          DateTime? @default(now()) @db.Timestamp(6)
+  bookings            bookings  @relation(fields: [booking_id], references: [booking_id], onDelete: NoAction, onUpdate: NoAction, map: "flight_bookings_booking_id_fkey1")
+  users               users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([provider_order_id], map: "idx_flight_booking_order")
+  @@index([pnr], map: "idx_flight_booking_pnr")
+  @@index([provider_booking_id], map: "idx_flight_booking_provider")
+  @@index([booking_status], map: "idx_flight_booking_status")
+  @@index([user_id], map: "idx_flight_booking_user")
+}
+
+model user_stats {
+  id                      Int       @id @default(autoincrement())
+  user_id                 Int       @unique
+  total_bookings          Int?      @default(0)
+  total_flight_bookings   Int?      @default(0)
+  total_hotel_bookings    Int?      @default(0)
+  total_tour_bookings     Int?      @default(0)
+  total_distance_km       BigInt?   @default(0)
+  total_countries_visited Int?      @default(0)
+  total_cities_visited    Int?      @default(0)
+  total_flights_taken     Int?      @default(0)
+  total_amount_spent      Decimal?  @default(0) @db.Decimal(12, 2)
+  average_booking_value   Decimal?  @default(0) @db.Decimal(10, 2)
+  loyalty_points          Int?      @default(0)
+  loyalty_tier            String?   @default("BRONZE") @db.VarChar(20)
+  last_booking_date       DateTime? @db.Timestamp(6)
+  favorite_airline        String?   @db.VarChar(100)
+  favorite_destination    String?   @db.VarChar(100)
+  account_created_days    Int?      @default(0)
+  created_at              DateTime? @default(now()) @db.Timestamp(6)
+  updated_at              DateTime? @default(now()) @db.Timestamp(6)
+  users                   users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([loyalty_tier], map: "idx_user_stats_loyalty")
+  @@index([user_id], map: "idx_user_stats_user")
+}
+
+model users {
+  id                  Int               @id @default(autoincrement())
+  email               String            @unique @db.VarChar(255)
+  phone               String?           @db.VarChar(20)
+  first_name          String?           @db.VarChar(100)
+  last_name           String?           @db.VarChar(100)
+  password_hash       String?           @db.VarChar(255)
+  profile_picture_url String?
+  created_at          DateTime?         @default(now()) @db.Timestamp(6)
+  updated_at          DateTime?         @default(now()) @db.Timestamp(6)
+  user_type           String?           @default("B2C") @db.VarChar(10)
+  bookings            bookings[]
+  co_travellers       co_travellers[]
+  flight_bookings     flight_bookings[]
+  user_stats          user_stats?
+}

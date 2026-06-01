@@ -1,4 +1,10 @@
 require('dotenv').config();
+
+// Fix for Prisma BigInt serialization
+BigInt.prototype.toJSON = function () {
+  return this.toString();
+};
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -8,6 +14,13 @@ const flightRoutes = require('./routes/flight.routes');
 const bookingRoutes = require('./routes/booking.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const couponRoutes = require('./routes/coupon.routes');
+
+// Prisma ORM Routes
+const usersRoutes = require('./routes/users.routes');
+const travellersRoutes = require('./routes/travellers.routes');
+const bookingsRoutes = require('./routes/bookings.routes');
+const flightBookingsRoutes = require('./routes/flightBookings.routes');
+const userStatsRoutes = require('./routes/userStats.routes');
 
 const app = express();
 
@@ -67,7 +80,8 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '10kb' })); // Body parser with payload limit
+app.use(express.json({ limit: '50mb' })); // Body parser with payload limit
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('short')); // Simplified request logging to reduce terminal clutter
 
 app.use('/api/health', (req, res) => {
@@ -78,6 +92,13 @@ app.use('/api/flights', flightRoutes);
 app.use('/api/booking', bookingRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/coupons', couponRoutes);
+
+// Prisma ORM Endpoints
+app.use('/api/v2/users', usersRoutes);
+app.use('/api/v2/travellers', travellersRoutes);
+app.use('/api/v2/bookings', bookingsRoutes);
+app.use('/api/v2/flight-bookings', flightBookingsRoutes);
+app.use('/api/v2/user-stats', userStatsRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
@@ -92,8 +113,17 @@ app.use((err, req, res, next) => {
 // Start Server (Only for local development)
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}`);
+    
+    // Check Database Connection
+    try {
+      const prisma = require('./config/prisma');
+      await prisma.$connect();
+      console.log('✅ Database is connected successfully.');
+    } catch (error) {
+      console.error('❌ Database is NOT connected:', error.message);
+    }
   });
 }
 
