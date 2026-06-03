@@ -1,5 +1,3 @@
-const puppeteer = require('puppeteer');
-
 class PDFService {
   /**
    * Generates a PDF buffer from an HTML string
@@ -9,6 +7,7 @@ class PDFService {
   async generatePDF(htmlContent) {
     let browser;
     try {
+      const puppeteer = require('puppeteer');
       browser = await puppeteer.launch({
         headless: 'new',
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
