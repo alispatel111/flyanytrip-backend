@@ -23,7 +23,9 @@
     "mongoose": "^9.3.0",
     "morgan": "^1.10.1",
     "node-cache": "^5.1.2",
+    "nodemailer": "^8.0.10",
     "pg": "^8.20.0",
+    "puppeteer": "^25.1.0",
     "razorpay": "^2.9.6",
     "shortid": "^2.2.17"
   },
