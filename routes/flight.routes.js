@@ -9,7 +9,6 @@ router.get('/search', flightSearchLimiter, flightController.searchFlights);
 router.post('/search/multicity', flightSearchLimiter, flightController.searchMultiCityFlights);
 router.get('/locations', flightController.searchLocations);
 router.get('/calendar-fare', flightController.getCalendarFare);
-router.get('/calendar-fares', flightController.getCalendarFare);
 router.post('/fare-rule', flightController.getFareRule);
 router.post('/fare-quote', flightController.getFareQuote);
 router.post('/ssr', flightController.getFlightSSR);
