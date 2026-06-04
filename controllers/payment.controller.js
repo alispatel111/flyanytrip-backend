@@ -78,7 +78,25 @@ const verifyPayment = async (req, res, next) => {
   }
 };
 
+/**
+ * Get public configurations (Razorpay key)
+ * GET /api/payment/config
+ */
+const getConfig = async (req, res, next) => {
+  try {
+    return res.status(200).json({
+      success: true,
+      data: {
+        keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_RH0I6LBnmc0Ziz'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createOrder,
   verifyPayment,
+  getConfig,
 };

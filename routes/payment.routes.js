@@ -8,4 +8,7 @@ router.post('/create-order', paymentController.createOrder);
 // POST /api/payment/verify
 router.post('/verify', paymentController.verifyPayment);
 
+// GET /api/payment/config
+router.get('/config', paymentController.getConfig);
+
 module.exports = router;
