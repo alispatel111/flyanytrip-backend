@@ -11,4 +11,7 @@ router.post('/confirm', bookingController.confirmBooking);
 // GET /api/booking/details/:id
 router.get('/details/:id', bookingController.getBookingDetails);
 
+// GET /api/booking/invoice/:id/download
+router.get('/invoice/:id/download', bookingController.downloadInvoice);
+
 module.exports = router;

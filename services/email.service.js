@@ -32,7 +32,7 @@ class EmailService {
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #E21C26;">Thanks for choosing FlyAnyTrip!</h2>
             <p>Dear <strong>${passengerName}</strong>,</p>
-            <p>Your flight booking has been successfully confirmed. Please find your e-ticket and invoice attached to this email.</p>
+            <p>Your flight booking has been successfully confirmed. ${pdfBuffer ? 'Please find your e-ticket and invoice attached to this email.' : ''}</p>
             
             <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
               <h4 style="margin-top: 0; color: #333;">Booking Summary</h4>
@@ -49,13 +49,13 @@ class EmailService {
             <p><strong>Team FlyAnyTrip</strong></p>
           </div>
         `,
-        attachments: [
+        attachments: pdfBuffer ? [
           {
             filename: `FlyAnyTrip_Invoice_${pnr}.pdf`,
             content: pdfBuffer,
             contentType: 'application/pdf',
           },
-        ],
+        ] : [],
       };
 
       const info = await this.transporter.sendMail(mailOptions);
