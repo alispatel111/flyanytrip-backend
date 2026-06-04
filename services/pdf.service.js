@@ -7,11 +7,33 @@ class PDFService {
   async generatePDF(htmlContent) {
     let browser;
     try {
-      const puppeteer = require('puppeteer');
-      browser = await puppeteer.launch({
-        headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      });
+      let puppeteer;
+      let options = {};
+
+      // If running on Vercel / AWS lambda, load sparticuz-chromium and puppeteer-core
+      if (process.env.VERCEL || process.env.AWS_EXECUTION_ENV) {
+        console.log("Serverless/production environment detected. Instantiating @sparticuz/chromium...");
+        const chromium = require('@sparticuz/chromium');
+        puppeteer = require('puppeteer-core');
+
+        options = {
+          args: chromium.args,
+          defaultViewport: chromium.defaultViewport,
+          executablePath: await chromium.executablePath(),
+          headless: chromium.headless,
+          ignoreHTTPSErrors: true,
+        };
+      } else {
+        // Local environment uses standard puppeteer with standard launch args
+        console.log("Local development environment detected. Instantiating standard puppeteer...");
+        puppeteer = require('puppeteer');
+        options = {
+          headless: 'new',
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        };
+      }
+
+      browser = await puppeteer.launch(options);
       
       const page = await browser.newPage();
       
