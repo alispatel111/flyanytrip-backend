@@ -85,7 +85,7 @@ exports.confirmBooking = async (req, res, next) => {
         const ticketStatus = responseData?.TicketStatus || (isLCC ? 'TICKETED' : 'BOOKED');
 
         // 2. Find or Create User if not logged in
-        let actualUserId = userId || null;
+        let actualUserId = userId ? parseInt(userId, 10) : null;
         let savedBooking;
 
         try {
@@ -150,10 +150,10 @@ exports.confirmBooking = async (req, res, next) => {
                     }
                 });
 
-                // C. Save co_travellers if actualUserId is provided
+                // C. Save ALL travellers to travellers table
                 if (actualUserId && passengers && passengers.length > 0) {
                     for (const pax of passengers) {
-                        await tx.co_travellers.create({
+                        await tx.travellers.create({
                             data: {
                                 user_id: actualUserId,
                                 title: pax.Title,
