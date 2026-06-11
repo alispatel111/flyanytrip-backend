@@ -2,7 +2,7 @@ const AdivahaFlightService = require('../integrations/adivaha/adivaha.service');
 const prisma = require('../config/prisma');
 const emailService = require('../services/email.service');
 const pdfService = require('../services/pdf.service');
-const { getInvoiceHTML } = require('../utils/invoiceTemplate');
+const { getInvoiceDocDefinition } = require('../utils/invoiceTemplate');
 
 /**
  * Revalidate flight (Fare Quote)
@@ -146,7 +146,22 @@ exports.confirmBooking = async (req, res, next) => {
                         is_lcc: isLCC || false,
                         total_passengers: passengers?.length || 1,
                         distance_km: 0,
-                        raw_response: adivahaRes // Save raw provider response for debugging
+                        raw_response: {
+                            adivaha: adivahaRes,
+                            passengers: passengers?.map((p, idx) => ({
+                                firstName: p.FirstName,
+                                lastName: p.LastName,
+                                gender: p.Gender === 1 ? 'Male' : 'Female',
+                                dob: p.DateOfBirth || 'N/A',
+                                passportNo: p.PassportNo || 'N/A',
+                                passportExpiry: p.PassportExpiry || 'N/A',
+                                meal: ssrSelections?.meals?.find(m => m.paxIdx === idx)?.name || p.meal || p.MealDynamic?.[0]?.Code || p.Meal?.Code || 'Not Selected',
+                                baggage: ssrSelections?.baggage?.find(b => b.paxIdx === idx)?.weight || p.baggage || p.Baggage?.[0]?.Weight || p.Baggage?.Weight || 'Standard',
+                                seat: ssrSelections?.seats?.find(s => s.paxIdx === idx)?.seatNo || 'Unassigned',
+                                ticketStatus: ticketStatus
+                            })) || [],
+                            flightSnapshot: flightSnapshot
+                        }
                     }
                 });
 
@@ -202,7 +217,22 @@ exports.confirmBooking = async (req, res, next) => {
                     is_lcc: isLCC || false,
                     total_passengers: passengers?.length || 1,
                     distance_km: 0,
-                    raw_response: adivahaRes
+                    raw_response: {
+                        adivaha: adivahaRes,
+                        passengers: passengers?.map((p, idx) => ({
+                            firstName: p.FirstName,
+                            lastName: p.LastName,
+                            gender: p.Gender === 1 ? 'Male' : 'Female',
+                            dob: p.DateOfBirth || 'N/A',
+                            passportNo: p.PassportNo || 'N/A',
+                            passportExpiry: p.PassportExpiry || 'N/A',
+                            meal: ssrSelections?.meals?.find(m => m.paxIdx === idx)?.name || p.meal || p.MealDynamic?.[0]?.Code || p.Meal?.Code || 'Not Selected',
+                            baggage: ssrSelections?.baggage?.find(b => b.paxIdx === idx)?.weight || p.baggage || p.Baggage?.[0]?.Weight || p.Baggage?.Weight || 'Standard',
+                            seat: ssrSelections?.seats?.find(s => s.paxIdx === idx)?.seatNo || 'Unassigned',
+                            ticketStatus: ticketStatus
+                        })) || [],
+                        flightSnapshot: flightSnapshot
+                    }
                 }
             };
         }
@@ -226,6 +256,7 @@ exports.confirmBooking = async (req, res, next) => {
                         passportExpiry: p.PassportExpiry || 'N/A',
                         meal: ssrSelections?.meals?.find(m => m.paxIdx === idx)?.name || p.meal || p.MealDynamic?.[0]?.Code || p.Meal?.Code || 'Not Selected',
                         baggage: ssrSelections?.baggage?.find(b => b.paxIdx === idx)?.weight || p.baggage || p.Baggage?.[0]?.Weight || p.Baggage?.Weight || 'Standard',
+                        seat: ssrSelections?.seats?.find(s => s.paxIdx === idx)?.seatNo || 'Unassigned',
                         ticketStatus: ticketStatus
                     })),
                     origin: flightSnapshot?.from || 'Origin',
@@ -234,6 +265,9 @@ exports.confirmBooking = async (req, res, next) => {
                         ? new Date(flightSnapshot.raw.Segments[0][0].Origin.DepTime).toLocaleString() 
                         : 'Date not available',
                     airline: flightSnapshot?.airlineCode || 'Airline',
+                    flightNumber: flightSnapshot?.raw?.Segments?.[0]?.[0]?.Airline?.FlightNumber || 'XX-000',
+                    cabinClass: flightSnapshot?.class || 'Economy',
+                    segments: flightSnapshot?.raw?.Segments?.[0] || [],
                     totalFare: savedBooking.booking.total_amount,
                     baseFare: flightSnapshot?.raw?.Fare?.BaseFare || Math.round(savedBooking.booking.total_amount * 0.7), // Fallback approximation
                     taxes: flightSnapshot?.raw?.Fare?.Tax || Math.round(savedBooking.booking.total_amount * 0.3), // Fallback approximation
@@ -244,10 +278,10 @@ exports.confirmBooking = async (req, res, next) => {
                     state: contactDetails.State || 'N/A'
                 };
 
-                const html = getInvoiceHTML(invoiceData);
+                const docDefinition = getInvoiceDocDefinition(invoiceData);
                 let pdfBuffer = null;
                 try {
-                    pdfBuffer = await pdfService.generatePDF(html);
+                    pdfBuffer = await pdfService.generatePDF(docDefinition);
                 } catch (pdfErr) {
                     console.error('Error generating PDF invoice:', pdfErr.message);
                 }
@@ -321,27 +355,33 @@ exports.downloadInvoice = async (req, res, next) => {
 
             if (booking && booking.flight_bookings) {
                 const fb = booking.flight_bookings;
+                let savedPassengers = fb.raw_response?.passengers || [
+                    {
+                        firstName: booking.users?.first_name || 'Guest',
+                        lastName: booking.users?.last_name || 'User',
+                        gender: 'Male',
+                        dob: 'N/A',
+                        passportNo: 'N/A',
+                        passportExpiry: 'N/A',
+                        meal: 'Standard',
+                        baggage: '15 KGs',
+                        seat: 'Unassigned',
+                        ticketStatus: fb.ticket_status || 'CONFIRMED'
+                    }
+                ];
+
                 invoiceData = {
                     pnr: fb.pnr || 'PENDING',
                     bookingId: booking.booking_id,
                     bookingDate: new Date(booking.created_at || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-                    passengers: [
-                        {
-                            firstName: booking.users?.first_name || 'Guest',
-                            lastName: booking.users?.last_name || 'User',
-                            gender: 'Male',
-                            dob: 'N/A',
-                            passportNo: 'N/A',
-                            passportExpiry: 'N/A',
-                            meal: 'Standard',
-                            baggage: '15 KGs',
-                            ticketStatus: fb.ticket_status || 'CONFIRMED'
-                        }
-                    ],
+                    passengers: savedPassengers,
                     origin: fb.origin_airport || 'Origin',
                     destination: fb.destination_airport || 'Destination',
                     departureDate: fb.departure_date ? new Date(fb.departure_date).toLocaleString() : 'Date not available',
                     airline: fb.validating_airline || 'Airline',
+                    flightNumber: fb.raw_response?.flightSnapshot?.raw?.Segments?.[0]?.[0]?.Airline?.FlightNumber || 'XX-000',
+                    cabinClass: fb.raw_response?.flightSnapshot?.class || 'Economy',
+                    segments: fb.raw_response?.flightSnapshot?.raw?.Segments?.[0] || [],
                     totalFare: booking.total_amount ? parseFloat(booking.total_amount) : 0,
                     baseFare: Math.round((booking.total_amount ? parseFloat(booking.total_amount) : 0) * 0.7),
                     taxes: Math.round((booking.total_amount ? parseFloat(booking.total_amount) : 0) * 0.3),
@@ -372,6 +412,7 @@ exports.downloadInvoice = async (req, res, next) => {
                         passportExpiry: 'N/A',
                         meal: 'Standard',
                         baggage: '15 KGs',
+                        seat: 'Unassigned',
                         ticketStatus: 'CONFIRMED'
                     }
                 ],
@@ -390,8 +431,8 @@ exports.downloadInvoice = async (req, res, next) => {
             };
         }
 
-        const html = getInvoiceHTML(invoiceData);
-        const pdfBuffer = await pdfService.generatePDF(html);
+        const docDefinition = getInvoiceDocDefinition(invoiceData);
+        const pdfBuffer = await pdfService.generatePDF(docDefinition);
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=FlyAnyTrip_Invoice_${invoiceData.pnr}.pdf`);
