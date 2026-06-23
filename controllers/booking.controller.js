@@ -148,24 +148,61 @@ exports.confirmBooking = async (req, res, next) => {
                         distance_km: 0,
                         raw_response: {
                             adivaha: adivahaRes,
-                            passengers: passengers?.map((p, idx) => ({
-                                firstName: p.FirstName,
-                                lastName: p.LastName,
-                                gender: p.Gender === 1 ? 'Male' : 'Female',
-                                dob: p.DateOfBirth || 'N/A',
-                                passportNo: p.PassportNo || 'N/A',
-                                passportExpiry: p.PassportExpiry || 'N/A',
-                                meal: ssrSelections?.meals?.find(m => m.paxIdx === idx)?.name || p.meal || p.MealDynamic?.[0]?.Code || p.Meal?.Code || 'Not Selected',
-                                baggage: ssrSelections?.baggage?.find(b => b.paxIdx === idx)?.weight || p.baggage || p.Baggage?.[0]?.Weight || p.Baggage?.Weight || 'Standard',
-                                seat: ssrSelections?.seats?.find(s => s.paxIdx === idx)?.seatNo || 'Unassigned',
-                                ticketStatus: ticketStatus
-                            })) || [],
+                            passengers: passengers?.map((p, idx) => {
+                                // Resolve SSR fields — seat is stored as `.code` on the selection object
+                                const seatSel    = ssrSelections?.seats?.find(s => s.paxIdx === idx);
+                                const mealSel    = ssrSelections?.meals?.find(m => m.paxIdx === idx);
+                                const baggageSel = ssrSelections?.baggage?.find(b => b.paxIdx === idx);
+                                return {
+                                    firstName:      p.FirstName,
+                                    lastName:       p.LastName,
+                                    gender:         p.Gender === 1 ? 'Male' : 'Female',
+                                    dob:            p.DateOfBirth || 'N/A',
+                                    passportNo:     p.PassportNo  || 'N/A',
+                                    passportExpiry: p.PassportExpiry || 'N/A',
+                                    seat:    seatSel    ? seatSel.code       : 'Auto-assigned',
+                                    meal:    mealSel    ? mealSel.name       : 'Standard Meal',
+                                    baggage: baggageSel ? baggageSel.weight  : 'None',
+                                    seatPrice:    seatSel?.price    || 0,
+                                    mealPrice:    mealSel?.price    || 0,
+                                    baggagePrice: baggageSel?.price || 0,
+                                    ticketStatus: ticketStatus,
+                                };
+                            }) || [],
                             flightSnapshot: flightSnapshot
                         }
                     }
                 });
 
-                // C. Save ALL travellers to travellers table
+                // C. Save SSR (Seat, Meal, Baggage) per passenger — dedicated table rows
+                if (passengers && passengers.length > 0) {
+                    const paxRows = passengers.map((p, idx) => {
+                        const seatSel    = ssrSelections?.seats?.find(s  => s.paxIdx === idx);
+                        const mealSel    = ssrSelections?.meals?.find(m  => m.paxIdx === idx);
+                        const baggageSel = ssrSelections?.baggage?.find(b => b.paxIdx === idx);
+                        return {
+                            booking_id:      booking.booking_id,
+                            pax_index:       idx,
+                            first_name:      p.FirstName,
+                            last_name:       p.LastName,
+                            gender:          p.Gender === 1 ? 'Male' : 'Female',
+                            date_of_birth:   p.DateOfBirth   || null,
+                            pax_type:        p.PaxType       || 1,
+                            passport_no:     p.PassportNo    || null,
+                            passport_expiry: p.PassportExpiry || null,
+                            ticket_status:   ticketStatus,
+                            seat_number:     seatSel    ? seatSel.code       : null,
+                            seat_price:      seatSel    ? (seatSel.price    || 0) : 0,
+                            meal_name:       mealSel    ? mealSel.name       : null,
+                            meal_price:      mealSel    ? (mealSel.price    || 0) : 0,
+                            baggage_weight:  baggageSel ? baggageSel.weight  : null,
+                            baggage_price:   baggageSel ? (baggageSel.price || 0) : 0,
+                        };
+                    });
+                    await tx.flight_booking_passengers.createMany({ data: paxRows });
+                }
+
+                // D. Save travellers profile records
                 if (actualUserId && passengers && passengers.length > 0) {
                     for (const pax of passengers) {
                         await tx.travellers.create({
@@ -185,6 +222,7 @@ exports.confirmBooking = async (req, res, next) => {
 
                 return { booking, flightBooking };
             });
+
         } catch (dbError) {
             console.error('Database connection/query failed. Falling back to memory-based mock booking for UI checkout:', dbError.message);
             
@@ -219,18 +257,26 @@ exports.confirmBooking = async (req, res, next) => {
                     distance_km: 0,
                     raw_response: {
                         adivaha: adivahaRes,
-                        passengers: passengers?.map((p, idx) => ({
-                            firstName: p.FirstName,
-                            lastName: p.LastName,
-                            gender: p.Gender === 1 ? 'Male' : 'Female',
-                            dob: p.DateOfBirth || 'N/A',
-                            passportNo: p.PassportNo || 'N/A',
-                            passportExpiry: p.PassportExpiry || 'N/A',
-                            meal: ssrSelections?.meals?.find(m => m.paxIdx === idx)?.name || p.meal || p.MealDynamic?.[0]?.Code || p.Meal?.Code || 'Not Selected',
-                            baggage: ssrSelections?.baggage?.find(b => b.paxIdx === idx)?.weight || p.baggage || p.Baggage?.[0]?.Weight || p.Baggage?.Weight || 'Standard',
-                            seat: ssrSelections?.seats?.find(s => s.paxIdx === idx)?.seatNo || 'Unassigned',
-                            ticketStatus: ticketStatus
-                        })) || [],
+                        passengers: passengers?.map((p, idx) => {
+                            const seatSel    = ssrSelections?.seats?.find(s => s.paxIdx === idx);
+                            const mealSel    = ssrSelections?.meals?.find(m => m.paxIdx === idx);
+                            const baggageSel = ssrSelections?.baggage?.find(b => b.paxIdx === idx);
+                            return {
+                                firstName:      p.FirstName,
+                                lastName:       p.LastName,
+                                gender:         p.Gender === 1 ? 'Male' : 'Female',
+                                dob:            p.DateOfBirth || 'N/A',
+                                passportNo:     p.PassportNo  || 'N/A',
+                                passportExpiry: p.PassportExpiry || 'N/A',
+                                seat:    seatSel    ? seatSel.code       : 'Auto-assigned',
+                                meal:    mealSel    ? mealSel.name       : 'Standard Meal',
+                                baggage: baggageSel ? baggageSel.weight  : 'None',
+                                seatPrice:    seatSel?.price    || 0,
+                                mealPrice:    mealSel?.price    || 0,
+                                baggagePrice: baggageSel?.price || 0,
+                                ticketStatus: ticketStatus,
+                            };
+                        }) || [],
                         flightSnapshot: flightSnapshot
                     }
                 }
@@ -240,42 +286,60 @@ exports.confirmBooking = async (req, res, next) => {
         // 4. Generate PDF Invoice and Send Email (Awaited for serverless compatibility)
         if (contactDetails?.Email) {
             try {
-                console.log(`Starting invoice generation for PNR: ${pnr}...`);
+        console.log(`Starting invoice generation for PNR: ${pnr}...`);
                 
+                // Compute SSR totals for invoice line items
+                const ssrSeatTotal  = ssrSelections?.seats?.reduce((acc, s) => acc + (s?.price  || 0), 0) || 0;
+                const ssrMealTotal  = ssrSelections?.meals?.reduce((acc, m) => acc + (m?.price  || 0), 0) || 0;
+                const ssrBagTotal   = ssrSelections?.baggage?.reduce((acc, b) => acc + (b?.price || 0), 0) || 0;
+                const ssrCharges    = ssrSeatTotal + ssrMealTotal + ssrBagTotal;
+
+                // Build per-passenger SSR lookup for the invoice template
+                const ssrPerPassenger = passengers.map((p, idx) => ({
+                    seat:    ssrSelections?.seats?.find(s  => s.paxIdx  === idx)?.code   || 'Auto-assigned',
+                    meal:    ssrSelections?.meals?.find(m  => m.paxIdx  === idx)?.name   || 'Standard Meal',
+                    baggage: ssrSelections?.baggage?.find(b => b.paxIdx === idx)?.weight || 'None',
+                }));
+
                 // Format data for the invoice template
                 const invoiceData = {
                     pnr: pnr,
                     bookingId: savedBooking.booking.booking_id,
                     bookingDate: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
                     passengers: passengers.map((p, idx) => ({
-                        firstName: p.FirstName,
-                        lastName: p.LastName,
-                        gender: p.Gender === 1 ? 'Male' : 'Female',
-                        dob: p.DateOfBirth || 'N/A',
-                        passportNo: p.PassportNo || 'N/A',
+                        firstName:      p.FirstName,
+                        lastName:       p.LastName,
+                        gender:         p.Gender === 1 ? 'Male' : 'Female',
+                        dob:            p.DateOfBirth || 'N/A',
+                        passportNo:     p.PassportNo  || 'N/A',
                         passportExpiry: p.PassportExpiry || 'N/A',
-                        meal: ssrSelections?.meals?.find(m => m.paxIdx === idx)?.name || p.meal || p.MealDynamic?.[0]?.Code || p.Meal?.Code || 'Not Selected',
-                        baggage: ssrSelections?.baggage?.find(b => b.paxIdx === idx)?.weight || p.baggage || p.Baggage?.[0]?.Weight || p.Baggage?.Weight || 'Standard',
-                        seat: ssrSelections?.seats?.find(s => s.paxIdx === idx)?.seatNo || 'Unassigned',
-                        ticketStatus: ticketStatus
+                        seat:           ssrSelections?.seats?.find(s  => s.paxIdx  === idx)?.code   || 'Auto-assigned',
+                        meal:           ssrSelections?.meals?.find(m  => m.paxIdx  === idx)?.name   || 'Standard Meal',
+                        baggage:        ssrSelections?.baggage?.find(b => b.paxIdx === idx)?.weight || 'None',
+                        ticketStatus:   ticketStatus,
                     })),
-                    origin: flightSnapshot?.from || 'Origin',
-                    destination: flightSnapshot?.to || 'Destination',
-                    departureDate: flightSnapshot?.raw?.Segments?.[0]?.[0]?.Origin?.DepTime 
-                        ? new Date(flightSnapshot.raw.Segments[0][0].Origin.DepTime).toLocaleString() 
+                    ssrPerPassenger,
+                    ssrCharges,
+                    ssrSeatTotal,
+                    ssrMealTotal,
+                    ssrBagTotal,
+                    origin:         flightSnapshot?.from || 'Origin',
+                    destination:    flightSnapshot?.to   || 'Destination',
+                    departureDate:  flightSnapshot?.raw?.Segments?.[0]?.[0]?.Origin?.DepTime
+                        ? new Date(flightSnapshot.raw.Segments[0][0].Origin.DepTime).toLocaleString()
                         : 'Date not available',
-                    airline: flightSnapshot?.airlineCode || 'Airline',
-                    flightNumber: flightSnapshot?.raw?.Segments?.[0]?.[0]?.Airline?.FlightNumber || 'XX-000',
-                    cabinClass: flightSnapshot?.class || 'Economy',
-                    segments: flightSnapshot?.raw?.Segments?.[0] || [],
-                    totalFare: savedBooking.booking.total_amount,
-                    baseFare: flightSnapshot?.raw?.Fare?.BaseFare || Math.round(savedBooking.booking.total_amount * 0.7), // Fallback approximation
-                    taxes: flightSnapshot?.raw?.Fare?.Tax || Math.round(savedBooking.booking.total_amount * 0.3), // Fallback approximation
-                    status: 'CONFIRMED',
-                    contactEmail: contactDetails.Email,
-                    contactPhone: contactDetails.ContactNo,
-                    gstNumber: contactDetails.GSTNumber || contactDetails.GstNumber || 'N/A',
-                    state: contactDetails.State || 'N/A'
+                    airline:        flightSnapshot?.airlineCode || 'Airline',
+                    flightNumber:   flightSnapshot?.raw?.Segments?.[0]?.[0]?.Airline?.FlightNumber || 'XX-000',
+                    cabinClass:     flightSnapshot?.class || 'Economy',
+                    segments:       flightSnapshot?.raw?.Segments?.[0] || [],
+                    totalFare:      savedBooking.booking.total_amount,
+                    baseFare:       flightSnapshot?.raw?.Fare?.BaseFare   || Math.round(savedBooking.booking.total_amount * 0.7),
+                    taxes:          flightSnapshot?.raw?.Fare?.Tax         || Math.round(savedBooking.booking.total_amount * 0.3),
+                    status:         'CONFIRMED',
+                    contactEmail:   contactDetails.Email,
+                    contactPhone:   contactDetails.ContactNo,
+                    gstNumber:      contactDetails.GSTNumber || contactDetails.GstNumber || 'N/A',
+                    state:          contactDetails.State || 'N/A',
                 };
 
                 const docDefinition = getInvoiceDocDefinition(invoiceData);
@@ -346,50 +410,106 @@ exports.downloadInvoice = async (req, res, next) => {
             const booking = await prisma.bookings.findUnique({
                 where: { booking_id: id },
                 include: {
-                    flight_bookings: true,
+                    flight_bookings: {
+                        include: {
+                            passengers: {          // flight_booking_passengers rows
+                                orderBy: { pax_index: 'asc' }
+                            }
+                        }
+                    },
                     users: {
                         select: { first_name: true, last_name: true, email: true, phone: true }
                     }
                 }
             });
 
+
             if (booking && booking.flight_bookings) {
                 const fb = booking.flight_bookings;
-                let savedPassengers = fb.raw_response?.passengers || [
-                    {
-                        firstName: booking.users?.first_name || 'Guest',
-                        lastName: booking.users?.last_name || 'User',
-                        gender: 'Male',
-                        dob: 'N/A',
-                        passportNo: 'N/A',
+
+                // Primary: rows from flight_booking_passengers table
+                // Fallback: legacy raw_response.passengers JSON (older bookings)
+                let savedPassengers;
+                if (fb.passengers && fb.passengers.length > 0) {
+                    savedPassengers = fb.passengers.map(p => ({
+                        firstName:    p.first_name    || '',
+                        lastName:     p.last_name     || '',
+                        gender:       p.gender        || 'Male',
+                        dob:          p.date_of_birth || 'N/A',
+                        passportNo:   p.passport_no   || 'N/A',
+                        passportExpiry: p.passport_expiry || 'N/A',
+                        seat:         p.seat_number   || 'Auto-assigned',
+                        meal:         p.meal_name     || 'Standard Meal',
+                        baggage:      p.baggage_weight || 'None',
+                        seatPrice:    parseFloat(p.seat_price    || 0),
+                        mealPrice:    parseFloat(p.meal_price    || 0),
+                        baggagePrice: parseFloat(p.baggage_price || 0),
+                        ticketStatus: p.ticket_status || fb.ticket_status || 'CONFIRMED',
+                    }));
+                } else {
+                    // Legacy fallback — normalise old raw_response shape
+                    const raw = fb.raw_response?.passengers || [];
+                    savedPassengers = raw.length > 0 ? raw.map(p => ({
+                        firstName:    p.firstName    || '',
+                        lastName:     p.lastName     || '',
+                        gender:       p.gender       || 'Male',
+                        dob:          p.dob          || 'N/A',
+                        passportNo:   p.passportNo   || 'N/A',
+                        passportExpiry: p.passportExpiry || 'N/A',
+                        seat:         p.seat         || 'Auto-assigned',
+                        meal:         p.meal         || 'Standard Meal',
+                        baggage:      p.baggage      || 'None',
+                        seatPrice:    p.seatPrice    || 0,
+                        mealPrice:    p.mealPrice    || 0,
+                        baggagePrice: p.baggagePrice || 0,
+                        ticketStatus: p.ticketStatus || fb.ticket_status || 'CONFIRMED',
+                    })) : [{
+                        firstName:    booking.users?.first_name || 'Guest',
+                        lastName:     booking.users?.last_name  || 'User',
+                        gender:       'Male',
+                        dob:          'N/A',
+                        passportNo:   'N/A',
                         passportExpiry: 'N/A',
-                        meal: 'Standard',
-                        baggage: '15 KGs',
-                        seat: 'Unassigned',
-                        ticketStatus: fb.ticket_status || 'CONFIRMED'
-                    }
-                ];
+                        seat:         'Auto-assigned',
+                        meal:         'Standard Meal',
+                        baggage:      'None',
+                        seatPrice: 0, mealPrice: 0, baggagePrice: 0,
+                        ticketStatus: fb.ticket_status || 'CONFIRMED',
+                    }];
+                }
+
+                const ssrSeatTotal = savedPassengers.reduce((acc, p) => acc + (p.seatPrice    || 0), 0);
+                const ssrMealTotal = savedPassengers.reduce((acc, p) => acc + (p.mealPrice    || 0), 0);
+                const ssrBagTotal  = savedPassengers.reduce((acc, p) => acc + (p.baggagePrice || 0), 0);
+                const ssrCharges   = ssrSeatTotal + ssrMealTotal + ssrBagTotal;
+
+                const rawTotal = booking.total_amount ? parseFloat(booking.total_amount) : 0;
 
                 invoiceData = {
-                    pnr: fb.pnr || 'PENDING',
-                    bookingId: booking.booking_id,
-                    bookingDate: new Date(booking.created_at || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-                    passengers: savedPassengers,
-                    origin: fb.origin_airport || 'Origin',
-                    destination: fb.destination_airport || 'Destination',
+
+                    pnr:          fb.pnr || 'PENDING',
+                    bookingId:    booking.booking_id,
+                    bookingDate:  new Date(booking.created_at || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+                    passengers:   savedPassengers,
+                    ssrSeatTotal,
+                    ssrMealTotal,
+                    ssrBagTotal,
+                    ssrCharges,
+                    origin:       fb.origin_airport      || 'Origin',
+                    destination:  fb.destination_airport || 'Destination',
                     departureDate: fb.departure_date ? new Date(fb.departure_date).toLocaleString() : 'Date not available',
-                    airline: fb.validating_airline || 'Airline',
+                    airline:      fb.validating_airline  || 'Airline',
                     flightNumber: fb.raw_response?.flightSnapshot?.raw?.Segments?.[0]?.[0]?.Airline?.FlightNumber || 'XX-000',
-                    cabinClass: fb.raw_response?.flightSnapshot?.class || 'Economy',
-                    segments: fb.raw_response?.flightSnapshot?.raw?.Segments?.[0] || [],
-                    totalFare: booking.total_amount ? parseFloat(booking.total_amount) : 0,
-                    baseFare: Math.round((booking.total_amount ? parseFloat(booking.total_amount) : 0) * 0.7),
-                    taxes: Math.round((booking.total_amount ? parseFloat(booking.total_amount) : 0) * 0.3),
-                    status: booking.status || 'CONFIRMED',
+                    cabinClass:   fb.raw_response?.flightSnapshot?.class || 'Economy',
+                    segments:     fb.raw_response?.flightSnapshot?.raw?.Segments?.[0] || [],
+                    totalFare:    rawTotal,
+                    baseFare:     Math.round(rawTotal * 0.7),
+                    taxes:        Math.round(rawTotal * 0.3),
+                    status:       booking.status || 'CONFIRMED',
                     contactEmail: booking.users?.email || 'customer@flyanytrip.com',
                     contactPhone: booking.users?.phone || 'N/A',
-                    gstNumber: 'N/A',
-                    state: 'N/A'
+                    gstNumber:    'N/A',
+                    state:        'N/A',
                 };
             }
         } catch (dbErr) {

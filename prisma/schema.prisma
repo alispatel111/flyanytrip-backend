@@ -116,12 +116,43 @@ model flight_bookings {
   updated_at          DateTime? @default(now()) @db.Timestamp(6)
   bookings            bookings  @relation(fields: [booking_id], references: [booking_id], onDelete: NoAction, onUpdate: NoAction, map: "flight_bookings_booking_id_fkey1")
   users               users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  passengers          flight_booking_passengers[]
 
   @@index([provider_order_id], map: "idx_flight_booking_order")
   @@index([pnr], map: "idx_flight_booking_pnr")
   @@index([provider_booking_id], map: "idx_flight_booking_provider")
   @@index([booking_status], map: "idx_flight_booking_status")
   @@index([user_id], map: "idx_flight_booking_user")
+}
+
+/// One row per passenger per booking — stores seat, meal & baggage as proper columns
+model flight_booking_passengers {
+  id              Int      @id @default(autoincrement())
+  booking_id      String   @db.VarChar(50)
+  pax_index       Int      // 0-based index matching the passengers array
+  first_name      String?  @db.VarChar(100)
+  last_name       String?  @db.VarChar(100)
+  gender          String?  @db.VarChar(20)
+  date_of_birth   String?  @db.VarChar(20)  // stored as string to avoid timezone issues
+  pax_type        Int?     // 1=Adult 2=Child 3=Infant
+  passport_no     String?  @db.VarChar(50)
+  passport_expiry String?  @db.VarChar(20)
+  ticket_status   String?  @db.VarChar(50)
+  // Seat
+  seat_number     String?  @db.VarChar(10)
+  seat_price      Decimal? @default(0) @db.Decimal(10, 2)
+  // Meal
+  meal_name       String?  @db.VarChar(150)
+  meal_price      Decimal? @default(0) @db.Decimal(10, 2)
+  // Extra Baggage
+  baggage_weight  String?  @db.VarChar(30)
+  baggage_price   Decimal? @default(0) @db.Decimal(10, 2)
+
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+
+  flight_bookings flight_bookings @relation(fields: [booking_id], references: [booking_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([booking_id], map: "idx_fbp_booking_id")
 }
 
 model user_stats {

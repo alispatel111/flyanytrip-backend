@@ -14,6 +14,10 @@ const getInvoiceDocDefinition = (bookingData) => {
         totalFare = 0,
         baseFare = 0,
         taxes = 0,
+        ssrCharges   = 0,
+        ssrSeatTotal = 0,
+        ssrMealTotal = 0,
+        ssrBagTotal  = 0,
         status = 'CONFIRMED',
         contactEmail = 'N/A',
         contactPhone = 'N/A',
@@ -22,19 +26,33 @@ const getInvoiceDocDefinition = (bookingData) => {
         segments = []
     } = bookingData;
 
+    // ─── Passenger rows (main table) ─────────────────────────────────────────
     const passengerRows = passengers.map((pax, index) => {
         let nameText = `${pax.firstName} ${pax.lastName}`;
-        if (pax.passportNo !== 'N/A') {
+        if (pax.passportNo && pax.passportNo !== 'N/A') {
             nameText += `\nPassport: ${pax.passportNo} | Exp: ${pax.passportExpiry}`;
         }
         return [
-            { text: (index + 1).toString(), style: 'tableBody' },
-            { text: nameText, style: 'tableBody', bold: true },
-            { text: pax.gender || 'N/A', style: 'tableBody' },
+            { text: (index + 1).toString(),      style: 'tableBody' },
+            { text: nameText,                     style: 'tableBody', bold: true },
+            { text: pax.gender        || 'N/A',   style: 'tableBody' },
             { text: pax.dob !== 'N/A' ? pax.dob : '-', style: 'tableBody' },
-            { text: pax.ticketStatus || status, style: 'tableBody', color: '#4caf50', bold: true }
+            { text: pax.seat          || 'Auto',  style: 'tableBody', color: '#718096' },
+            { text: pax.ticketStatus  || status,  style: 'tableBody', color: '#4caf50', bold: true }
         ];
     });
+
+    // ─── SSR per-passenger rows ───────────────────────────────────────────────
+    const ssrRows = passengers.map((pax, index) => [
+        { text: (index + 1).toString(),                      style: 'tableBody' },
+        { text: `${pax.firstName} ${pax.lastName}`,          style: 'tableBody', bold: true },
+        { text: pax.seat    || 'Auto-assigned',               style: 'tableBody' },
+        { text: pax.meal    || 'Standard Meal',               style: 'tableBody' },
+        { text: pax.baggage || 'None',                        style: 'tableBody' },
+    ]);
+
+    // ─── Has any paid SSR? ────────────────────────────────────────────────────
+    const hasPaidSsr = ssrCharges > 0;
 
     const formatCurrency = (val) => `Rs. ${parseFloat(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
@@ -258,33 +276,60 @@ const getInvoiceDocDefinition = (bookingData) => {
             {
                 table: {
                     headerRows: 1,
-                    widths: ['auto', '*', 'auto', 'auto', 'auto'],
+                    widths: ['auto', '*', 'auto', 'auto', 'auto', 'auto'],
                     body: [
                         [
-                            { text: '#', style: 'tableHeader' },
+                            { text: '#',            style: 'tableHeader' },
                             { text: 'NAME & PASSPORT', style: 'tableHeader' },
-                            { text: 'GENDER', style: 'tableHeader' },
-                            { text: 'DOB', style: 'tableHeader' },
-                            { text: 'STATUS', style: 'tableHeader' }
+                            { text: 'GENDER',       style: 'tableHeader' },
+                            { text: 'DOB',          style: 'tableHeader' },
+                            { text: 'SEAT',         style: 'tableHeader' },
+                            { text: 'STATUS',       style: 'tableHeader' }
                         ],
                         ...passengerRows
                     ]
                 },
                 layout: {
-                    hLineWidth: function (i, node) { return 1; },
-                    vLineWidth: function (i, node) { return 0; },
-                    hLineColor: function (i, node) { return '#E2E8F0'; },
-                    paddingTop: function(i, node) { return 10; },
-                    paddingBottom: function(i, node) { return 10; }
+                    hLineWidth: (i, node) => 1,
+                    vLineWidth: (i, node) => 0,
+                    hLineColor: (i, node) => '#E2E8F0',
+                    paddingTop:    (i, node) => 10,
+                    paddingBottom: (i, node) => 10,
                 },
                 margin: [0, 0, 0, 20]
             },
 
-            // CUSTOMER & PAYMENT SUMMARY (Side by side or stacked)
-            // Added pageBreak here to move billing and terms to the second page
+            // SEATS, MEALS & EXTRA BAGGAGE
+            { text: 'SEATS, MEALS & EXTRA BAGGAGE', style: 'sectionHeader', margin: [0, 10, 0, 10] },
             {
-                pageBreak: 'before',
+                table: {
+                    headerRows: 1,
+                    widths: ['auto', '*', 'auto', '*', 'auto'],
+                    body: [
+                        [
+                            { text: '#',             style: 'tableHeader' },
+                            { text: 'PASSENGER',     style: 'tableHeader' },
+                            { text: 'SEAT',          style: 'tableHeader' },
+                            { text: 'MEAL',          style: 'tableHeader' },
+                            { text: 'EXTRA BAGGAGE', style: 'tableHeader' }
+                        ],
+                        ...ssrRows
+                    ]
+                },
+                layout: {
+                    hLineWidth: (i, node) => 1,
+                    vLineWidth: (i, node) => 0,
+                    hLineColor: (i, node) => '#E2E8F0',
+                    paddingTop:    (i, node) => 10,
+                    paddingBottom: (i, node) => 10,
+                },
+                margin: [0, 0, 0, 20]
+            },
+
+            // CUSTOMER & PAYMENT SUMMARY
+            {
                 columns: [
+
                     {
                         width: '50%',
                         stack: [
@@ -310,25 +355,28 @@ const getInvoiceDocDefinition = (bookingData) => {
                                 table: {
                                     widths: ['*', 'auto'],
                                     body: [
-                                        ['Base Fare', formatCurrency(baseFare)],
-                                        ['Taxes & Airline Fees', formatCurrency(taxes)],
-                                        ['Convenience Fee', formatCurrency(0)],
-                                        [{ text: 'Discounts', color: '#48BB78' }, { text: '- ' + formatCurrency(0), color: '#48BB78' }],
+                                        ['Base Fare',              { text: formatCurrency(baseFare), alignment: 'right' }],
+                                        ['Taxes & Airline Fees',   { text: formatCurrency(taxes),    alignment: 'right' }],
+                                        ...(ssrSeatTotal > 0  ? [['Seat Selection',              { text: formatCurrency(ssrSeatTotal), alignment: 'right' }]] : []),
+                                        ...(ssrMealTotal > 0  ? [['Meal Add-ons',                { text: formatCurrency(ssrMealTotal), alignment: 'right' }]] : []),
+                                        ...(ssrBagTotal  > 0  ? [['Extra Baggage',               { text: formatCurrency(ssrBagTotal),  alignment: 'right' }]] : []),
+                                        ['Convenience Fee',        { text: formatCurrency(0),        alignment: 'right' }],
+                                        [{ text: 'Discounts', color: '#48BB78' }, { text: '- ' + formatCurrency(0), color: '#48BB78', alignment: 'right' }],
                                         [
                                             { text: 'Grand Total', bold: true, fillColor: '#2D3748', color: '#FFFFFF' },
-                                            { text: formatCurrency(totalFare), bold: true, fillColor: '#2D3748', color: '#FFFFFF' }
+                                            { text: formatCurrency(totalFare), bold: true, fillColor: '#2D3748', color: '#FFFFFF', alignment: 'right' }
                                         ]
                                     ]
                                 },
                                 layout: {
-                                    hLineWidth: function (i, node) { return 1; },
-                                    vLineWidth: function (i, node) { return 1; },
-                                    hLineColor: function (i, node) { return '#E2E8F0'; },
-                                    vLineColor: function (i, node) { return '#E2E8F0'; },
-                                    paddingTop: function(i, node) { return 10; },
-                                    paddingBottom: function(i, node) { return 10; },
-                                    paddingLeft: function(i, node) { return 12; },
-                                    paddingRight: function(i, node) { return 12; }
+                                    hLineWidth: (i, node) => 1,
+                                    vLineWidth: (i, node) => 1,
+                                    hLineColor: (i, node) => '#E2E8F0',
+                                    vLineColor: (i, node) => '#E2E8F0',
+                                    paddingTop:    (i, node) => 10,
+                                    paddingBottom: (i, node) => 10,
+                                    paddingLeft:   (i, node) => 12,
+                                    paddingRight:  (i, node) => 12,
                                 }
                             }
                         ]
