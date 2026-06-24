@@ -42,6 +42,7 @@ exports.confirmBooking = async (req, res, next) => {
             paymentData, 
             flightSnapshot,
             ssrSelections,
+            totalAmount,
             userId // optional
         } = req.body;
 
@@ -117,7 +118,7 @@ exports.confirmBooking = async (req, res, next) => {
                         user_id: actualUserId,
                         booking_type: 'FLIGHT',
                         status: 'CONFIRMED',
-                        total_amount: flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0,
+                        total_amount: totalAmount || (flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0),
                         currency: 'INR',
                     }
                 });
@@ -138,8 +139,8 @@ exports.confirmBooking = async (req, res, next) => {
                         departure_date: flightSnapshot?.raw?.Segments?.[0]?.[0]?.Origin?.DepTime 
                                         ? new Date(flightSnapshot.raw.Segments[0][0].Origin.DepTime) 
                                         : new Date(),
-                        total_fare: flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0,
-                        offered_fare: flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0,
+                        total_fare: totalAmount || (flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0),
+                        offered_fare: totalAmount || (flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0),
                         currency: 'INR',
                         ticket_status: ticketStatus,
                         booking_status: 'CONFIRMED',
@@ -233,7 +234,7 @@ exports.confirmBooking = async (req, res, next) => {
                     user_id: actualUserId || 1,
                     booking_type: 'FLIGHT',
                     status: 'CONFIRMED',
-                    total_amount: flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0,
+                    total_amount: totalAmount || (flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0),
                     currency: 'INR',
                 },
                 flightBooking: {
@@ -247,8 +248,8 @@ exports.confirmBooking = async (req, res, next) => {
                     origin_airport: flightSnapshot?.from || 'XXX',
                     destination_airport: flightSnapshot?.to || 'XXX',
                     departure_date: new Date(),
-                    total_fare: flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0,
-                    offered_fare: flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0,
+                    total_fare: totalAmount || (flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0),
+                    offered_fare: totalAmount || (flightSnapshot?.price ? parseFloat(String(flightSnapshot.price).replace(/,/g, '')) : 0),
                     currency: 'INR',
                     ticket_status: ticketStatus,
                     booking_status: 'CONFIRMED',
