@@ -1,6 +1,9 @@
 const AdivahaHotelService = require('../integrations/adivaha/adivaha.hotel.service');
 const prisma = require('../config/prisma');
 const { apiCache, generateCacheKey } = require('../utils/cache');
+const emailService = require('../services/email.service');
+const pdfService = require('../services/pdf.service');
+const { getHotelInvoiceDocDefinition } = require('../utils/hotelInvoiceTemplate');
 
 /**
  * Step 1 — Get Hotel Locations (autocomplete)
@@ -298,8 +301,51 @@ exports.bookHotel = async (req, res, next) => {
           provider_reference: bookingRef,
           provider_order_id: String(orderId),
           hotel_name: hotelSnapshot?.hotelName || '',
+          check_in: hotelSnapshot?.checkIn,
+          check_out: hotelSnapshot?.checkOut,
+          rooms: hotelSnapshot?.rooms || 1,
+          adults: hotelSnapshot?.adults || 1,
+          children: hotelSnapshot?.children || 0,
+          destination_code: hotelSnapshot?.destinationCode,
+          holder_name: `${holder.name} ${holder.surname}`,
+          total_fare: chargablePrice || 0,
+          currency,
         },
       };
+    }
+
+    // ─── Generate Invoice & Send Email ───
+    try {
+      if (holder?.email) {
+        const hBooking = savedBooking.hotelBooking;
+        const invoiceData = {
+          bookingId: savedBooking.booking.booking_id,
+          bookingReference: bookingRef,
+          orderId: String(orderId),
+          hotelName: hBooking.hotel_name,
+          hotelAddress: hotelSnapshot?.address || 'N/A',
+          checkIn: hBooking.check_in ? new Date(hBooking.check_in).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A',
+          checkOut: hBooking.check_out ? new Date(hBooking.check_out).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A',
+          nightCount: hotelSnapshot?.nightCount || 1,
+          rooms: hBooking.rooms,
+          adults: hBooking.adults,
+          children: hBooking.children,
+          roomType: hotelSnapshot?.roomName || 'Standard Room',
+          boardPlan: hotelSnapshot?.boardName || 'Room Only',
+          totalFare: hBooking.total_fare,
+          status: savedBooking.booking.status,
+          contactEmail: holder.email,
+          contactPhone: holder.phone || 'N/A',
+          guestName: hBooking.holder_name,
+        };
+
+        const docDefinition = getHotelInvoiceDocDefinition(invoiceData);
+        const pdfBuffer = await pdfService.generatePDF(docDefinition);
+
+        await emailService.sendHotelInvoiceEmail(holder.email, invoiceData, pdfBuffer);
+      }
+    } catch (emailError) {
+      console.error('Error generating/sending hotel invoice email:', emailError.message);
     }
 
     return res.status(200).json({
@@ -399,6 +445,136 @@ exports.getMyHotelBookings = async (req, res, next) => {
     return res.status(200).json({ success: true, data: bookings });
   } catch (error) {
     console.error('Hotel getMyHotelBookings Error:', error.message);
+    next(error);
+  }
+};
+
+/**
+ * Download Hotel Invoice PDF
+ * GET /api/hotels/invoice/:id/download
+ */
+exports.downloadInvoice = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    // Find booking
+    const booking = await prisma.hotel_bookings.findFirst({
+      where: { booking_id: id },
+      include: { bookings: true }
+    });
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Hotel booking not found' });
+    }
+
+    // Attempt to extract hotelSnapshot from raw_response if available
+    const rawRes = booking.raw_response || {};
+    const hotelSnapshot = rawRes.hotelSnapshot || {};
+
+    const invoiceData = {
+      bookingId: booking.booking_id,
+      bookingReference: booking.provider_reference || 'N/A',
+      orderId: booking.provider_order_id || 'N/A',
+      hotelName: booking.hotel_name,
+      hotelAddress: hotelSnapshot.address || 'N/A',
+      checkIn: booking.check_in ? new Date(booking.check_in).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A',
+      checkOut: booking.check_out ? new Date(booking.check_out).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A',
+      nightCount: hotelSnapshot.nightCount || 1,
+      rooms: booking.rooms || 1,
+      adults: booking.adults || 1,
+      children: booking.children || 0,
+      roomType: hotelSnapshot.roomName || 'Standard Room',
+      boardPlan: hotelSnapshot.boardName || 'Room Only',
+      totalFare: booking.total_fare || 0,
+      status: booking.booking_status || 'CONFIRMED',
+      contactEmail: 'user@flyanytrip.com', // Would ideally come from user profile or booking JSON
+      contactPhone: 'N/A',
+      guestName: booking.holder_name || 'Guest',
+      bookingDate: booking.created_at ? new Date(booking.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date().toLocaleDateString('en-IN'),
+    };
+
+    const docDefinition = getHotelInvoiceDocDefinition(invoiceData);
+    const pdfBuffer = await pdfService.generatePDF(docDefinition);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="Hotel_Invoice_${id}.pdf"`,
+      'Content-Length': pdfBuffer.length
+    });
+
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Error generating hotel invoice PDF:', error.message);
+    next(error);
+  }
+};
+
+/**
+ * DEBUG — Inspect raw Adivaha pricing data
+ * POST /api/hotels/debug-pricing
+ * Body: same as /search
+ * Returns the full raw first-hotel object so pricing fields can be verified.
+ * REMOVE THIS IN PRODUCTION.
+ */
+exports.debugPricing = async (req, res, next) => {
+  try {
+    const { regionid, countryCode, checkIn, checkOut, rooms, adults, children } = req.body;
+
+    if (!regionid || !checkIn || !checkOut) {
+      return res.status(400).json({ success: false, message: 'regionid, checkIn, checkOut required' });
+    }
+
+    const data = await AdivahaHotelService.hotelSearch({
+      regionid, countryCode, checkIn, checkOut,
+      rooms: rooms || 1, adults: adults || '1',
+      children: children || '0', childAge: '0', page: 1,
+    });
+
+    const hotelList = data?.responseData?.HotelLists?.HotelList || [];
+    const first = hotelList[0];
+    const second = hotelList[1];
+
+    // Extract every field from the first 2 hotels for analysis
+    const pricing = {
+      totalHotelsReturned: hotelList.length,
+      // Top-level response fields that might hold currency
+      responseTopKeys: Object.keys(data?.responseData || {}),
+      responseCurrency: data?.responseData?.currency,
+      responseCurrencyUpper: data?.responseData?.Currency,
+      // First hotel complete raw object
+      firstHotel: {
+        raw: first,
+        pricingFields: {
+          LowRate: first?.LowRate,
+          HighRate: first?.HighRate,
+          Currency: first?.Currency,
+          currency: first?.currency,
+          minRate: first?.minRate,
+          price: first?.price,
+          net: first?.net,
+          total: first?.total,
+          sellingPrice: first?.sellingPrice,
+          retailPrice: first?.retailPrice,
+          amount: first?.amount,
+        },
+        allKeys: Object.keys(first || {}),
+      },
+      // Second hotel for comparison
+      secondHotel: second ? {
+        LowRate: second.LowRate,
+        Currency: second.Currency,
+        currency: second.currency,
+        Name: second.Name,
+      } : null,
+    };
+
+    console.log('\n======= DEBUG PRICING ENDPOINT =======');
+    console.log(JSON.stringify(pricing, null, 2));
+    console.log('=====================================\n');
+
+    return res.status(200).json({ success: true, pricing });
+  } catch (error) {
+    console.error('debugPricing Error:', error.message);
     next(error);
   }
 };
