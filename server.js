@@ -14,6 +14,7 @@ const flightRoutes = require('./routes/flight.routes');
 const bookingRoutes = require('./routes/booking.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const couponRoutes = require('./routes/coupon.routes');
+const hotelRoutes = require('./routes/hotel.routes');
 
 // Prisma ORM Routes
 const usersRoutes = require('./routes/users.routes');
@@ -92,6 +93,7 @@ app.use('/api/flights', flightRoutes);
 app.use('/api/booking', bookingRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/coupons', couponRoutes);
+app.use('/api/hotels', hotelRoutes);
 
 // Prisma ORM Endpoints
 app.use('/api/v2/users', usersRoutes);

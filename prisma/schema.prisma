@@ -19,10 +19,42 @@ model bookings {
   updated_at      DateTime?        @default(now()) @db.Timestamp(6)
   users           users?           @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   flight_bookings flight_bookings?
+  hotel_bookings  hotel_bookings?
 
   @@index([status], map: "idx_bookings_status")
   @@index([booking_type], map: "idx_bookings_type")
   @@index([user_id], map: "idx_bookings_user_id")
+}
+
+model hotel_bookings {
+  id                 Int       @id @default(autoincrement())
+  booking_id         String    @unique @db.VarChar(50)
+  user_id            Int?
+  hotel_id           String    @db.VarChar(50)
+  hotel_name         String?   @db.VarChar(255)
+  check_in           DateTime  @db.Date
+  check_out          DateTime  @db.Date
+  rooms              Int       @default(1)
+  adults             Int       @default(1)
+  children           Int       @default(0)
+  destination_code   String?   @db.VarChar(20)
+  rate_key           String?   @db.Text
+  provider_reference String?   @db.VarChar(100)
+  provider_order_id  String?   @db.VarChar(100)
+  holder_name        String?   @db.VarChar(200)
+  total_fare         Decimal?  @db.Decimal(10, 2)
+  currency           String?   @default("INR") @db.VarChar(10)
+  booking_status     String?   @default("CONFIRMED") @db.VarChar(50)
+  raw_response       Json?
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+  updated_at         DateTime? @default(now()) @db.Timestamp(6)
+  bookings           bookings  @relation(fields: [booking_id], references: [booking_id], onDelete: NoAction, onUpdate: NoAction)
+  users              users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([booking_status], map: "idx_hotel_booking_status")
+  @@index([hotel_id], map: "idx_hotel_booking_hotel_id")
+  @@index([user_id], map: "idx_hotel_booking_user_id")
+  @@index([provider_reference], map: "idx_hotel_booking_ref")
 }
 
 model co_travellers {
@@ -197,5 +229,6 @@ model users {
   co_travellers       co_travellers[]
   travellers          travellers[]
   flight_bookings     flight_bookings[]
+  hotel_bookings      hotel_bookings[]
   user_stats          user_stats?
 }
