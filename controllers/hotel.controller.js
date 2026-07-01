@@ -279,7 +279,14 @@ exports.bookHotel = async (req, res, next) => {
             total_fare: chargablePrice || 0,
             currency,
             booking_status: bookingStatus,
-            raw_response: adivahaRes,
+            raw_response: {
+              ...adivahaRes,
+              hotelSnapshot,
+              contactDetails: {
+                email: holder.email || 'N/A',
+                phone: holder.phone || 'N/A'
+              }
+            },
           },
         });
 
@@ -460,7 +467,10 @@ exports.downloadInvoice = async (req, res, next) => {
     // Find booking
     const booking = await prisma.hotel_bookings.findFirst({
       where: { booking_id: id },
-      include: { bookings: true }
+      include: { 
+        bookings: true,
+        users: true
+      }
     });
 
     if (!booking) {
@@ -470,6 +480,7 @@ exports.downloadInvoice = async (req, res, next) => {
     // Attempt to extract hotelSnapshot from raw_response if available
     const rawRes = booking.raw_response || {};
     const hotelSnapshot = rawRes.hotelSnapshot || {};
+    const contactDetails = rawRes.contactDetails || {};
 
     const invoiceData = {
       bookingId: booking.booking_id,
@@ -487,8 +498,8 @@ exports.downloadInvoice = async (req, res, next) => {
       boardPlan: hotelSnapshot.boardName || 'Room Only',
       totalFare: booking.total_fare || 0,
       status: booking.booking_status || 'CONFIRMED',
-      contactEmail: 'user@flyanytrip.com', // Would ideally come from user profile or booking JSON
-      contactPhone: 'N/A',
+      contactEmail: contactDetails.email || booking.users?.email || 'N/A',
+      contactPhone: contactDetails.phone || booking.users?.phone || 'N/A',
       guestName: booking.holder_name || 'Guest',
       bookingDate: booking.created_at ? new Date(booking.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date().toLocaleDateString('en-IN'),
     };
