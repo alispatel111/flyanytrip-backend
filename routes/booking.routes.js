@@ -14,4 +14,13 @@ router.get('/details/:id', bookingController.getBookingDetails);
 // GET /api/booking/invoice/:id/download
 router.get('/invoice/:id/download', bookingController.downloadInvoice);
 
+// POST /api/booking/cancel-charges
+router.post('/cancel-charges', bookingController.getCancellationCharges);
+
+// POST /api/booking/cancel-request
+router.post('/cancel-request', bookingController.requestCancellation);
+
+// POST /api/booking/cancel-status
+router.post('/cancel-status', bookingController.getCancellationStatus);
+
 module.exports = router;

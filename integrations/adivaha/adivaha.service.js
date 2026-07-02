@@ -517,6 +517,70 @@ class AdivahaFlightService {
       throw error;
     }
   }
+
+  /**
+   * Get flight cancellation charges
+   * POST https://api.adivaha.io/flights/api/?action=getCancellationCharges
+   */
+  static async getCancellationCharges(payload) {
+    try {
+      const apiPayload = {
+        action: "getCancellationCharges",
+        BookingId: String(payload.BookingId),
+        RequestType: String(payload.RequestType || 1)
+      };
+      const response = await adivahaClient.post('/?action=getCancellationCharges', apiPayload);
+      return response.data;
+    } catch (error) {
+      console.error('Adivaha getCancellationCharges Error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Request booking cancellation
+   * POST https://api.adivaha.io/flights/api/?action=ticketCancel
+   */
+  static async cancelBooking(payload) {
+    try {
+      const apiPayload = {
+        action: "ticketCancel",
+        order_id: payload.order_id,
+        ChangeRequestData: {
+          BookingId: Number(payload.ChangeRequestData.BookingId),
+          RequestType: Number(payload.ChangeRequestData.RequestType ?? 1),
+          CancellationType: Number(payload.ChangeRequestData.CancellationType ?? 0),
+          Sectors: payload.ChangeRequestData.Sectors || [],
+          TicketId: payload.ChangeRequestData.TicketId || [],
+          Remarks: payload.ChangeRequestData.Remarks || 'Customer request',
+          EndUserIp: payload.ChangeRequestData.EndUserIp || '127.0.0.1'
+        }
+      };
+      const response = await adivahaClient.post('/?action=ticketCancel', apiPayload);
+      return response.data;
+    } catch (error) {
+      console.error('Adivaha cancelBooking Error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Check cancellation status
+   * POST https://api.adivaha.io/flights/api/?action=checkChangeStatus
+   */
+  static async getCancellationStatus(payload) {
+    try {
+      const apiPayload = {
+        action: "checkChangeStatus",
+        ChangeRequestId: String(payload.ChangeRequestId)
+      };
+      const response = await adivahaClient.post('/?action=checkChangeStatus', apiPayload);
+      return response.data;
+    } catch (error) {
+      console.error('Adivaha getCancellationStatus Error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
 }
 
 module.exports = AdivahaFlightService;
